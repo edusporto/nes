@@ -1,0 +1,31 @@
+//! Module representing a 6502 CPU.
+//!
+//! The CPU has the following external connections:
+//! * Address (16-bit)
+//! * Read/Write Data (8-bit)
+//! * Read/Write flag
+//! * Clock
+//!
+//! The CPU will be connected to a Bus by the address lines
+//! and data lines. More devices will be connected to the Bus,
+//! such as the Picture Processing Unit.
+//!
+//! For now, the only other device connected to the CPU will
+//! be the RAM.
+//!
+//! Our CPU has three registers:
+//! * A: Accumulator (8-bit)
+//! * X (8-bit)
+//! * Y (8-bit)
+//! * STKP: Stack pointer (8-bit)
+//! * PC: Program counter (16-bit)
+//! * STATUS: Status flags (8-bit)
+//!
+//! The instructions performed by the CPU can have different
+//! sizes: they can be 1 byte, 2 bytes or 3 bytes. This means
+//! that some instructions will be executed in several clocks.
+//!
+//! With each instruction, we will have to deal with
+//! * Function
+//! * Address mode
+//! * Cycles
