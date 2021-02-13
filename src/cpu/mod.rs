@@ -31,6 +31,8 @@
 //! * Cycles
 
 mod flags;
+mod instructions;
+mod addressing;
 
 use flags::CpuFlags;
 
@@ -42,6 +44,12 @@ pub struct Cpu {
     pub stkp: u8,         // Stack pointer
     pub pc: u16,          // Program counter
     pub status: CpuFlags, // STATUS register
+
+    cycles: u8, // Contains the amount of cycles
+                // remaining by the current function.
+                // When it reaches 0, the next
+                // instruction will execute.
+    
 }
 
 impl Cpu {
@@ -53,6 +61,8 @@ impl Cpu {
             stkp: 0,
             pc: 0,
             status: CpuFlags::empty(),
+
+            cycles: 0,
         }
     }
 }
