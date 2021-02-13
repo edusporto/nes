@@ -29,3 +29,30 @@
 //! * Function
 //! * Address mode
 //! * Cycles
+
+mod flags;
+
+use flags::CpuFlags;
+
+/// Defines a CPU and its registers
+pub struct Cpu {
+    pub a: u8,            // Accumulator register
+    pub x: u8,            // X register
+    pub y: u8,            // Y register
+    pub stkp: u8,         // Stack pointer
+    pub pc: u16,          // Program counter
+    pub status: CpuFlags, // STATUS register
+}
+
+impl Cpu {
+    pub fn new() -> Cpu {
+        Cpu {
+            a: 0,
+            x: 0,
+            y: 0,
+            stkp: 0,
+            pc: 0,
+            status: CpuFlags::empty(),
+        }
+    }
+}
