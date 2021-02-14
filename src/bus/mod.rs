@@ -1,6 +1,5 @@
 //! Module for the Bus used by a 6502 CPU.
 
-use crate::cpu::Cpu;
 use crate::ram::Ram;
 
 // The following constants will be expanded in the future.
@@ -13,11 +12,14 @@ const ADDR_END: u16 = 0xFFFF;
 
 /// Contains the possible devices on the CPU.
 pub struct Bus {
-    pub cpu: Cpu,
     pub ram: Ram,
 }
 
 impl Bus {
+    pub fn new() -> Bus {
+        Bus { ram: Ram::new() }
+    }
+
     pub fn write(&mut self, addr: u16, data: u8) {
         match addr {
             ADDR_START..=ADDR_END => self.ram.write(addr, data),
@@ -26,7 +28,7 @@ impl Bus {
         }
     }
 
-    pub fn read(&self, addr: u16, read_only: bool) -> u8 {
+    pub fn read(&self, addr: u16, _read_only: bool) -> u8 {
         match addr {
             ADDR_START..=ADDR_END => self.ram.read(addr),
             // _ => panic!("invalid address used to read from CPU"),
