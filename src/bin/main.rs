@@ -7,5 +7,5 @@ fn main() {
     cpu.connect_bus(bus);
     
     cpu.write(0x00, 42);
-    println!("Value at address 0x00: {}", cpu.read(0x00, false));
+    println!("Value at address 0x00: {}", cpu.read(0x00));
 }

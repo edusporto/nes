@@ -28,7 +28,7 @@ impl Bus {
         }
     }
 
-    pub fn read(&self, addr: u16, _read_only: bool) -> u8 {
+    pub fn read(&self, addr: u16) -> u8 {
         match addr {
             ADDR_START..=ADDR_END => self.ram.read(addr),
             // _ => panic!("invalid address used to read from CPU"),

@@ -64,6 +64,21 @@ pub struct Cpu {
     /// When it reaches 0, the next
     /// instruction will execute.
     cycles: u8,
+
+    /// Fetched data to an instruction.
+    /// Represents the input to the ALU.
+    ///
+    /// Its value will be set on the addressing
+    /// mode functions and it will be used on
+    /// the instruction execute functions.
+    fetched: u8,
+
+    /// Represents used memory addresses.
+    addr_abs: u16,
+
+    /// The relative memory address is used by
+    /// branching instructions.
+    addr_rel: u16,
 }
 
 impl Cpu {
@@ -79,6 +94,9 @@ impl Cpu {
             status: CpuFlags::empty(),
 
             cycles: 0,
+            fetched: 0,
+            addr_abs: 0,
+            addr_rel: 0,
         }
     }
 
@@ -96,9 +114,9 @@ impl Cpu {
         }
     }
 
-    pub fn read(&self, addr: u16, read_only: bool) -> u8 {
+    pub fn read(&self, addr: u16) -> u8 {
         match &self.bus {
-            Some(bus) => bus.read(addr, read_only),
+            Some(bus) => bus.read(addr),
             None => panic!(
                 "called `read` on unconnected CPU. \
                 consider calling Bus::connect_cpu"
@@ -106,21 +124,44 @@ impl Cpu {
         }
     }
 
+    /// Reads from the address at the Program Counter
+    pub fn read_from_pc(&self) -> u8 {
+        self.read(self.pc)
+    }
+
+    /// Reads from the address at the Program Counter
+    /// and increments the program counter.
+    pub fn read_inc_pc(&mut self) -> u8 {
+        let result = self.read(self.pc);
+        self.pc += 1;
+        result
+    }
+
     pub fn clock(&mut self) {
         if self.cycles != 0 {
+            self.cycles -= 1;
             return;
         }
 
         // Read opcode from address at the Program Counter
-        let opcode = self.read(self.pc, false);
-        self.pc += 1;
+        let opcode = self.read_inc_pc();
 
         let ins = Instruction::lookup(opcode);
 
-        // Set cycles remaining for current instruction
-        self.cycles = ins.cycles;
+        // Each instructions needs a different amount of
+        // clock cycles.
+        let mut cycles = ins.cycles;
+
         // Call instruction
-        (ins.addrmode)(self);
-        (ins.execute)(self);
+        let add_cycle1 = (ins.addrmode)(self);
+        let add_cycle2 = (ins.execute)(self);
+
+        // `addrmode` and `execute` return either 0 or 1.
+        // If both return 0, an additional cycle is needed.
+        cycles += add_cycle1 & add_cycle2;
+
+        self.cycles = cycles;
+
+        self.cycles -= 1;
     }
 }
