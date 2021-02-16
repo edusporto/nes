@@ -65,6 +65,10 @@ pub struct Cpu {
     /// instruction will execute.
     cycles: u8,
 
+    /// Represents the opcode currently being
+    /// executed.
+    opcode: u8,
+
     /// Fetched data to an instruction.
     /// Represents the input to the ALU.
     ///
@@ -94,6 +98,7 @@ impl Cpu {
             status: CpuFlags::empty(),
 
             cycles: 0,
+            opcode: 0,
             fetched: 0,
             addr_abs: 0,
             addr_rel: 0,
@@ -163,5 +168,17 @@ impl Cpu {
         self.cycles = cycles;
 
         self.cycles -= 1;
+    }
+
+    /// Fetches the data required by the current instruction.
+    ///
+    /// Not used by the implied address mode.
+    fn fetch(&mut self) -> u8 {
+        let addrmode = Instruction::lookup(self.opcode).addrmode;
+        // Compare function pointers
+        if addrmode as usize != Cpu::imp as usize {
+            self.fetched = self.read(self.addr_abs);
+        }
+        self.fetched
     }
 }

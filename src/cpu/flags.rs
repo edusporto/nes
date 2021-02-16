@@ -4,13 +4,21 @@ use bitflags::bitflags;
 
 bitflags! {
     pub struct CpuFlags: u8 {
-        const C = 0b00000001; // Carry
-        const Z = 0b00000010; // Zero
-        const I = 0b00000100; // Disable interrupts
-        const D = 0b00001000; // Decimal mode
-        const B = 0b00010000; // Break
-        const U = 0b00100000; // Unused
-        const V = 0b01000000; // Overflow
-        const N = 0b10000000; // Negative
+        /// Carry
+        const C = 0b00000001;
+        /// Zero
+        const Z = 0b00000010;
+        /// Disable interrupts
+        const I = 0b00000100;
+        /// Decimal mode 
+        const D = 0b00001000;
+        /// Break
+        const B = 0b00010000;
+        /// Unused
+        const U = 0b00100000;
+        /// Overflow
+        const V = 0b01000000;
+        /// Negative
+        const N = 0b10000000;
     }
 }
