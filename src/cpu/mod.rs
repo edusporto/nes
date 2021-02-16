@@ -38,6 +38,9 @@ use crate::bus::Bus;
 use flags::CpuFlags;
 use instructions::Instruction;
 
+/// The 6502 has a hardcoded base location for the stack pointer
+pub const STACK_BASE: u16 = 0x0100;
+
 /// Defines a CPU and its registers
 pub struct Cpu {
     /// Representd the Bus which the CPU is connected to.
@@ -105,10 +108,12 @@ impl Cpu {
         }
     }
 
+    /// Connect a Bus to the CPU
     pub fn connect_bus(&mut self, bus: Bus) {
         self.bus = Some(bus);
     }
 
+    /// Write `data` to memory at address `addr`
     pub fn write(&mut self, addr: u16, data: u8) {
         match &mut self.bus {
             Some(bus) => bus.write(addr, data),
@@ -119,6 +124,7 @@ impl Cpu {
         }
     }
 
+    /// Read value from memory at address `addr`
     pub fn read(&self, addr: u16) -> u8 {
         match &self.bus {
             Some(bus) => bus.read(addr),
@@ -142,6 +148,117 @@ impl Cpu {
         result
     }
 
+    /// **Resets the CPU into a known state**
+    ///
+    /// Takes 8 CPU cycles.
+    ///
+    /// A = 0,
+    /// X = 0,
+    /// Y = 0,
+    /// STKP = 0xFD,
+    /// STATUS = 0x00 | CpuFlags::U
+    ///
+    ///
+    /// The PC will be set to the value pointed by the
+    /// 16-bit pointer found at 0xFFFC
+    pub fn reset(&mut self) {
+        self.a = 0;
+        self.x = 0;
+        self.y = 0;
+        self.stkp = 0xFD;
+        self.status = CpuFlags::empty() | CpuFlags::U;
+
+        self.addr_abs = 0xFFFC;
+        let low = self.read(self.addr_abs) as u16;
+        let high = self.read(self.addr_abs + 1) as u16;
+        self.pc = high << 8 | low;
+
+        self.addr_abs = 0;
+        self.addr_rel = 0;
+        self.fetched = 0;
+
+        self.cycles = 8;
+    }
+
+    /// **Interrupt request**
+    ///
+    /// Only executes if the I flag is 0.
+    ///
+    /// Takes 7 cycles.
+    ///
+    /// Writes the current PC to the Stack,
+    /// Sets the following flags:
+    /// B := 0
+    /// U := 1
+    /// I := 1
+    /// Writes the STATUS register to the Stack.
+    ///
+    /// The PC will be set to the value pointed by the
+    /// 16-bit pointer found at 0xFFFE
+    pub fn irq(&mut self) {
+        if self.status.contains(CpuFlags::I) {
+            return;
+        }
+
+        self.write(
+            STACK_BASE + self.stkp as u16,
+            ((self.pc >> 8) & 0x00FF) as u8,
+        );
+        self.stkp -= 1;
+        self.write(STACK_BASE + self.stkp as u16, (self.pc & 0x00FF) as u8);
+        self.stkp -= 1;
+
+        self.status.set(CpuFlags::B, false);
+        self.status.set(CpuFlags::U, true);
+        self.status.set(CpuFlags::I, true);
+        self.write(STACK_BASE + self.stkp as u16, self.status.bits());
+        self.stkp -= 1;
+
+        self.addr_abs = 0xFFFE;
+        let low = self.read(self.addr_abs) as u16;
+        let high = self.read(self.addr_abs) as u16;
+        self.pc = (high << 8) | low;
+
+        self.cycles = 7;
+    }
+
+    /// **Non-maskable interrupt**
+    ///
+    /// Takes 8 cycles.
+    ///
+    /// Same as the above, but it doesn't check the I flag
+    /// before executing.
+    ///
+    /// The PC will be set to the value pointed by the
+    /// 16-bit pointer found at 0xFFFA
+    pub fn nmi(&mut self) {
+        self.write(
+            STACK_BASE + self.stkp as u16,
+            ((self.pc >> 8) & 0x00FF) as u8,
+        );
+        self.stkp -= 1;
+        self.write(STACK_BASE + self.stkp as u16, (self.pc & 0x00FF) as u8);
+        self.stkp -= 1;
+
+        self.status.set(CpuFlags::B, false);
+        self.status.set(CpuFlags::U, true);
+        self.status.set(CpuFlags::I, true);
+        self.write(STACK_BASE + self.stkp as u16, self.status.bits());
+        self.stkp -= 1;
+
+        self.addr_abs = 0xFFFA;
+        let low = self.read(self.addr_abs) as u16;
+        let high = self.read(self.addr_abs) as u16;
+        self.pc = (high << 8) | low;
+
+        self.cycles = 8;
+    }
+
+    /// **Executes a clock cycle**
+    ///
+    /// If an instruction has clock cycles pending, does nothing.
+    /// Otherwise, it reads the current instruction from the PC
+    /// and executes it.
     pub fn clock(&mut self) {
         if self.cycles != 0 {
             self.cycles -= 1;

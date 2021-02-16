@@ -3,10 +3,9 @@
 // ====================================================
 
 use crate::cpu::flags::CpuFlags;
-use crate::cpu::Cpu;
+use crate::cpu::{Cpu, STACK_BASE};
 
-/// The 6502 has a hardcoded base location for the stack pointer
-const STACK_BASE: u16 = 0x0100;
+use super::Instruction;
 
 impl Cpu {
     /// Helper function. Sets the Z flag if the accumulator
@@ -78,7 +77,9 @@ impl Cpu {
         // 0 or 1
         let c = u8::from(self.status.contains(CpuFlags::C));
 
-        let addition = self.a as u16 + self.fetched as u16 + c as u16;
+        let addition = (self.a as u16)
+            .wrapping_add(self.fetched as u16)
+            .wrapping_add(c as u16);
 
         // If the result is over 0xFF, a carry bit is needed
         self.status.set(CpuFlags::C, addition > 0xFF);
@@ -128,8 +129,33 @@ impl Cpu {
         1
     }
 
+    /// Shift Left One Bit (Memory or Accumulator)
+    ///
+    /// Shifts left the value either in memory or in the Accumulator
+    /// by 1
+    ///
+    /// May change the flags N, Z, C
     pub fn asl(&mut self) -> u8 {
-        todo!()
+        self.fetch();
+
+        let result = (self.fetched as u16) << 1;
+
+        // if the 16-bit result is over 255, a carry bit is needed
+        self.status.set(CpuFlags::C, result > 255);
+        // cant use functions self.set_negative() and self.set_zero()
+        self.status.set(CpuFlags::N, result & 0x80 != 0);
+        self.status.set(CpuFlags::Z, result & 0xFF == 0);
+
+        // if the addresing mode is implied, write to the Accumulator
+        // otherwise, write to the memory
+        let addrmode = Instruction::lookup(self.opcode).addrmode;
+        if addrmode as usize == Cpu::imp as usize {
+            self.a = (result & 0xFF) as u8;
+        } else {
+            self.write(self.addr_abs, (result & 0xFF) as u8);
+        }
+
+        0
     }
 
     /// Branch on Carry Clear
@@ -162,8 +188,20 @@ impl Cpu {
         0
     }
 
+    /// Tests Bits in Memory with Accumulator
+    ///
+    /// Z := A & M == 0
+    /// N := M & 0b10000000
+    /// V := V & 0b01000000
     pub fn bit(&mut self) -> u8 {
-        todo!()
+        self.fetch();
+
+        let result = self.a & self.fetched;
+        self.status.set(CpuFlags::Z, result == 0);
+        self.status.set(CpuFlags::N, self.fetched & (1 << 7) != 0);
+        self.status.set(CpuFlags::V, self.fetched & (1 << 6) != 0);
+
+        0
     }
 
     /// Branch on Result Minus
@@ -196,8 +234,32 @@ impl Cpu {
         0
     }
 
+    /// Force Break
     pub fn brk(&mut self) -> u8 {
-        todo!()
+        // Performs something similar to an IRQ.
+        self.pc += 1;
+
+        self.status.set(CpuFlags::I, true);
+        self.write(
+            STACK_BASE + self.stkp as u16,
+            ((self.pc >> 8) & 0x00FF) as u8,
+        );
+        self.stkp -= 1;
+        self.write(STACK_BASE + self.stkp as u16, (self.pc & 0x00FF) as u8);
+        self.stkp -= 1;
+
+        // differs from IRQ here
+        self.status.set(CpuFlags::B, true);
+        self.write(STACK_BASE + self.stkp as u16, self.status.bits());
+        self.stkp -= 1;
+        self.status.set(CpuFlags::B, false);
+
+        // grabs the new program counter from the address 0xFFFE
+        let addr = 0xFFFE;
+        let low = self.read(addr) as u16;
+        let high = self.read(addr) as u16;
+        self.pc = (high << 8) | low;
+        0
     }
 
     /// Branch on Overflow clear
@@ -252,28 +314,123 @@ impl Cpu {
         0
     }
 
+    /// Compare Memory with Accumulator
+    ///
+    /// Compares the value in memory to the value in the Accumulator.
+    ///
+    /// C := A < M,
+    /// Z := (A - M) == 0
+    ///
+    /// May change the C, Z, N flags.
+    ///
+    /// May need an additional cycle.
     pub fn cmp(&mut self) -> u8 {
-        todo!()
+        self.fetch();
+
+        let result = (self.a as u16).wrapping_sub(self.fetched as u16);
+
+        self.status.set(CpuFlags::C, self.a < self.fetched);
+        self.status.set(CpuFlags::Z, result & 0xFF == 0);
+        self.status.set(CpuFlags::N, result & 0x80 != 0);
+
+        1
     }
 
+    /// Compare Memory and Index X
+    ///
+    /// Compares the value in memory to the value in the X register.
+    ///
+    /// C := X < M,
+    /// Z := (X - M) == 0
+    ///
+    /// May change the C, Z, N flags.
     pub fn cpx(&mut self) -> u8 {
-        todo!()
+        self.fetch();
+
+        let result = (self.x as u16).wrapping_sub(self.fetched as u16);
+
+        self.status.set(CpuFlags::C, self.x < self.fetched);
+        self.status.set(CpuFlags::Z, result & 0xFF == 0);
+        self.status.set(CpuFlags::N, result & 0x80 != 0);
+
+        0
     }
+
+    /// Compare Memory and Index Y
+    ///
+    /// Compares the value in memory to the value in the X register.
+    ///
+    /// C := Y < M,
+    /// Z := (Y - M) == 0
+    ///
+    /// May change the C, Z, N flags.
     pub fn cpy(&mut self) -> u8 {
-        todo!()
+        self.fetch();
+
+        let result = (self.y as u16).wrapping_sub(self.fetched as u16);
+
+        self.status.set(CpuFlags::C, self.y < self.fetched);
+        self.status.set(CpuFlags::Z, result & 0xFF == 0);
+        self.status.set(CpuFlags::N, result & 0x80 != 0);
+
+        0
     }
+
+    /// Decrement Memory by One
+    ///
+    /// Decreases the value in memory by 1.
+    ///
+    /// May change the N, Z flags.
     pub fn dec(&mut self) -> u8 {
-        todo!()
+        self.fetch();
+
+        let new = self.fetched.wrapping_sub(1);
+
+        self.write(self.addr_abs, new);
+        self.status.set(CpuFlags::N, new & 0x80 != 0);
+        self.status.set(CpuFlags::Z, new == 0);
+
+        0
     }
+
+    /// Decrement Index X by One
+    ///
+    /// Decreases the value in the X register by 1.
+    ///
+    /// May change the N, Z flags.
     pub fn dex(&mut self) -> u8 {
-        todo!()
+        self.fetch();
+
+        let new = self.x.wrapping_sub(1);
+
+        self.x = new;
+        self.status.set(CpuFlags::N, new & 0x80 != 0);
+        self.status.set(CpuFlags::Z, new == 0);
+
+        0
     }
+
+    /// Decrement Index Y by One
+    ///
+    /// Decreases the value in the Y register by 1.
+    ///
+    /// May change the N, Z flags.
     pub fn dey(&mut self) -> u8 {
-        todo!()
+        self.fetch();
+
+        let new = self.y.wrapping_sub(1);
+
+        self.y = new;
+        self.status.set(CpuFlags::N, new & 0x80 != 0);
+        self.status.set(CpuFlags::Z, new == 0);
+
+        0
     }
+
     pub fn eor(&mut self) -> u8 {
         todo!()
     }
+
     pub fn inc(&mut self) -> u8 {
         todo!()
     }
@@ -344,25 +501,50 @@ impl Cpu {
     ///
     /// May change the Z and N flags.
     pub fn pla(&mut self) -> u8 {
-        self.a = self.read(STACK_BASE + self.stkp as u16);
         self.stkp += 1;
+        self.a = self.read(STACK_BASE + self.stkp as u16);
         self.set_zero();
         self.set_negative();
         0
     }
 
+    /// Pull Processor Status from Stack
+    ///
+    /// Sets the status flags as the top value of the Stack.
+    ///
+    /// Sets the U flag to 1.
     pub fn plp(&mut self) -> u8 {
-        todo!()
+        self.stkp += 1;
+        let status = self.read(STACK_BASE + self.stkp as u16);
+        self.status = CpuFlags::from_bits(status).unwrap();
+        self.status.set(CpuFlags::U, true);
+        0
     }
+
     pub fn rol(&mut self) -> u8 {
         todo!()
     }
     pub fn ror(&mut self) -> u8 {
         todo!()
     }
+
+    /// Return from interrupt
     pub fn rti(&mut self) -> u8 {
-        todo!()
+        self.stkp += 1;
+        let status = self.read(STACK_BASE + self.stkp as u16);
+        self.status = CpuFlags::from_bits(status).unwrap();
+        self.status.set(CpuFlags::B, false);
+        self.status.set(CpuFlags::U, false);
+
+        self.stkp += 1;
+        let low = self.read(STACK_BASE + self.stkp as u16) as u16;
+        self.stkp += 1;
+        let high = self.read(STACK_BASE + self.stkp as u16) as u16;
+        self.pc = (high << 8) | low;
+
+        0
     }
+
     pub fn rts(&mut self) -> u8 {
         todo!()
     }
@@ -391,7 +573,9 @@ impl Cpu {
         // 0 or 1
         let c = u8::from(self.status.contains(CpuFlags::C));
 
-        let addition = self.a as u16 + self.fetched as u16 + c as u16;
+        let addition = (self.a as u16)
+            .wrapping_add(self.fetched as u16)
+            .wrapping_add(c as u16);
 
         // If the result is over 0xFF, a carry bit is needed
         self.status.set(CpuFlags::C, addition > 0xFF);
