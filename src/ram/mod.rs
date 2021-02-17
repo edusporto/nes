@@ -17,7 +17,7 @@ impl Ram {
         self.mem[addr as usize] = data
     }
 
-    pub fn read(&self, addr: u16) -> u8{
+    pub fn read(&self, addr: u16) -> u8 {
         self.mem[addr as usize]
     }
 }

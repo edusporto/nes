@@ -142,7 +142,7 @@ impl Cpu {
         if pointer_low == 0x00FF {
             high = self.read(pointer & 0xFF00) as u16;
         }
-        
+
         self.addr_abs = (high << 8) | low;
         0
     }

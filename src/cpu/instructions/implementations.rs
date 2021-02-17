@@ -762,7 +762,7 @@ impl Cpu {
         let high = self.read(STACK_BASE + self.stkp as u16) as u16;
 
         self.pc = ((high << 8) | low) + 1;
-        
+
         0
     }
 
@@ -823,40 +823,127 @@ impl Cpu {
         1
     }
 
+    /// Set Carry Flag
+    ///
+    /// Sets the Carry flag to 1.
     pub fn sec(&mut self) -> u8 {
-        todo!()
+        self.status.set(CpuFlags::C, true);
+        0
     }
+
+    /// Set Decimal Flag
+    ///
+    /// Sets the Decimal Mode flag to 1.
     pub fn sed(&mut self) -> u8 {
-        todo!()
+        self.status.set(CpuFlags::D, true);
+        0
     }
+
+    /// Set Interrupt Disable Status
+    ///
+    /// Sets the Interrupt flag to 1.
     pub fn sei(&mut self) -> u8 {
-        todo!()
+        self.status.set(CpuFlags::I, true);
+        0
     }
+
+    /// Store Accumulator in Memory
+    ///
+    /// M := A
     pub fn sta(&mut self) -> u8 {
-        todo!()
+        self.write(self.addr_abs, self.a);
+        0
     }
+
+    /// Store Index X in Memory
+    ///
+    /// M := X
     pub fn stx(&mut self) -> u8 {
-        todo!()
+        self.write(self.addr_abs, self.x);
+        0
     }
+
+    /// Store Index Y in Memory
+    ///
+    /// M := Y
     pub fn sty(&mut self) -> u8 {
-        todo!()
+        self.write(self.addr_abs, self.y);
+        0
     }
+
+    /// Transfer Accumulator to Index X
+    ///
+    /// X := A
+    ///
+    /// May change the N, Z flags.
     pub fn tax(&mut self) -> u8 {
-        todo!()
+        self.x = self.a;
+
+        self.set_negative();
+        self.set_zero();
+
+        0
     }
+
+    /// Transfer Accumulator to Index Y
+    ///
+    /// Y := A
+    ///
+    /// May change the N, Z flags.
     pub fn tay(&mut self) -> u8 {
-        todo!()
+        self.y = self.a;
+
+        self.set_negative();
+        self.set_zero();
+
+        0
     }
+
+    /// Transfer Stack Pointer to Index Y
+    ///
+    /// X := STKP
+    ///
+    /// May change the N, Z flags.
     pub fn tsx(&mut self) -> u8 {
-        todo!()
+        self.x = self.stkp;
+
+        self.status.set(CpuFlags::N, self.x & 0x80 != 0);
+        self.status.set(CpuFlags::Z, self.x == 0);
+
+        0
     }
+
+    /// Transfer Index X to Accumulator
+    ///
+    /// A := X
+    ///
+    /// May change the N, Z flags.
     pub fn txa(&mut self) -> u8 {
-        todo!()
+        self.a = self.x;
+
+        self.set_negative();
+        self.set_zero();
+
+        0
     }
+
+    /// Transfer Index X to Stack Register
+    ///
+    /// STKP := X
     pub fn txs(&mut self) -> u8 {
-        todo!()
+        self.stkp = self.x;
+        0
     }
+
+    /// Transfer Index Y to Accumulator
+    /// A := Y
+    /// May change the N, Z flags.
     pub fn tya(&mut self) -> u8 {
-        todo!()
+        self.a = self.y;
+
+        self.set_negative();
+        self.set_zero();
+
+        0
     }
 }

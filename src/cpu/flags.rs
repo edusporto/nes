@@ -10,7 +10,7 @@ bitflags! {
         const Z = 0b00000010;
         /// Disable interrupts
         const I = 0b00000100;
-        /// Decimal mode 
+        /// Decimal mode
         const D = 0b00001000;
         /// Break
         const B = 0b00010000;
