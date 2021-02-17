@@ -6,9 +6,18 @@ use crate::ram::Ram;
 // Their purpose is to define the ranges of address that
 // each device connected to the Bus represents.
 
-/// Start of
-const ADDR_START: u16 = 0x0000;
-const ADDR_END: u16 = 0xFFFF;
+/// Start of RAM
+const RAM_START: u16 = 0x0000;
+/// End of RAM
+///
+/// The NES RAM is only 2 KB but can be addressed
+/// up until 0x1FFF (8 KB) due to mirrorring.
+///
+/// This means that each memory position of the RAM
+/// can be accessed by 4 different addresses.
+const RAM_END: u16 = 0x1FFF;
+/// RAM size (2 KB)
+pub const RAM_SIZE: usize = 1024 * 2;
 
 /// Contains the possible devices on the CPU.
 pub struct Bus {
@@ -17,22 +26,28 @@ pub struct Bus {
 
 impl Bus {
     pub fn new() -> Bus {
-        Bus { ram: Ram::new() }
+        Bus {
+            ram: Ram::new(RAM_SIZE),
+        }
     }
 
     pub fn write(&mut self, addr: u16, data: u8) {
         match addr {
-            ADDR_START..=ADDR_END => self.ram.write(addr, data),
-            // _ => panic!("invalid address used to write to CPU"),
-            // ^ unreachable pattern
+            RAM_START..=RAM_END => {
+                let real_addr = addr & RAM_END;
+                self.ram.write(real_addr, data);
+            },
+            _ => panic!("invalid address used to write to RAM"),
         }
     }
 
     pub fn read(&self, addr: u16) -> u8 {
         match addr {
-            ADDR_START..=ADDR_END => self.ram.read(addr),
-            // _ => panic!("invalid address used to read from CPU"),
-            // ^ unreachable pattern
+            RAM_START..=RAM_END => {
+                let real_addr = addr & RAM_END; 
+                self.ram.read(real_addr)
+            },
+            _ => panic!("invalid address used to read from RAM"),
         }
     }
 }

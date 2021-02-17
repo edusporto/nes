@@ -1,15 +1,14 @@
 //! Module for the RAM used by the 6502 CPU.
 
-const MAX_MEM_SIZE: usize = std::u16::MAX as usize;
-
+/// Random Access Memory
 pub struct Ram {
-    pub mem: [u8; MAX_MEM_SIZE],
+    pub mem: Vec<u8>,
 }
 
 impl Ram {
-    pub fn new() -> Ram {
+    pub fn new(size: usize) -> Ram {
         Ram {
-            mem: [0; MAX_MEM_SIZE],
+            mem: vec![0; size],
         }
     }
 
