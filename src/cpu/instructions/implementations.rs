@@ -399,14 +399,9 @@ impl Cpu {
     ///
     /// May change the N, Z flags.
     pub fn dex(&mut self) -> u8 {
-        self.fetch();
-
-        let new = self.x.wrapping_sub(1);
-
-        self.x = new;
-        self.status.set(CpuFlags::N, new & 0x80 != 0);
-        self.status.set(CpuFlags::Z, new == 0);
-
+        self.x = self.x.wrapping_sub(1);
+        self.status.set(CpuFlags::N, self.x & 0x80 != 0);
+        self.status.set(CpuFlags::Z, self.x == 0);
         0
     }
 
@@ -416,53 +411,213 @@ impl Cpu {
     ///
     /// May change the N, Z flags.
     pub fn dey(&mut self) -> u8 {
+        self.y = self.y.wrapping_sub(1);
+        self.status.set(CpuFlags::N, self.y & 0x80 != 0);
+        self.status.set(CpuFlags::Z, self.y == 0);
+        0
+    }
+
+    /// Exclusivse-OR Memory with Accumulator
+    ///
+    /// A := A XOR M
+    ///
+    /// May change the N, Z flags.
+    ///
+    /// May need an additional clock cycle.
+    pub fn eor(&mut self) -> u8 {
         self.fetch();
 
-        let new = self.y.wrapping_sub(1);
+        let new = self.a ^ self.fetched;
 
-        self.y = new;
+        self.a = new;
+        self.set_negative();
+        self.set_zero();
+
+        1
+    }
+
+    /// Increment Memory by One
+    ///
+    /// Increases the value in memory by 1.
+    ///
+    /// May change the N, Z flags.
+    pub fn inc(&mut self) -> u8 {
+        self.fetch();
+
+        let new = self.fetched.wrapping_add(1);
+
+        self.write(self.addr_abs, new);
         self.status.set(CpuFlags::N, new & 0x80 != 0);
         self.status.set(CpuFlags::Z, new == 0);
 
         0
     }
 
-    pub fn eor(&mut self) -> u8 {
-        todo!()
+    /// Increment Index X by One
+    ///
+    /// Increases the value of the X register by 1.
+    ///
+    /// May change the N, Z flags.
+    pub fn inx(&mut self) -> u8 {
+        self.x = self.x.wrapping_add(1);
+        self.status.set(CpuFlags::N, self.x & 0x80 != 0);
+        self.status.set(CpuFlags::Z, self.x == 0);
+        0
     }
 
-    pub fn inc(&mut self) -> u8 {
-        todo!()
-    }
-    pub fn inx(&mut self) -> u8 {
-        todo!()
-    }
+    /// Increment Index X by One
+    ///
+    /// Increases the value of the X register by 1.
+    ///
+    /// May change the N, Z flags.
     pub fn iny(&mut self) -> u8 {
-        todo!()
+        self.y = self.y.wrapping_add(1);
+        self.status.set(CpuFlags::N, self.y & 0x80 != 0);
+        self.status.set(CpuFlags::Z, self.y == 0);
+        0
     }
+
+    /// Jump to New Location
+    ///
+    /// Changes the PC to the value in memory.
     pub fn jmp(&mut self) -> u8 {
-        todo!()
+        self.pc = self.addr_abs;
+        0
     }
+
+    /// Jump to New Location Saving Return Address
+    ///
+    /// Changes the PC to the value in memory but pushes
+    /// the PC value to the stack.
+    ///
+    /// Meant to be used with [`Cpu::rts`]
     pub fn jsr(&mut self) -> u8 {
-        todo!()
+        self.pc -= 1; // pushes the PC at the instruction to memory
+
+        self.write(STACK_BASE + self.stkp as u16, ((self.pc >> 8) & 0xFF) as u8);
+        self.stkp -= 1;
+        self.write(STACK_BASE + self.stkp as u16, (self.pc & 0xFF) as u8);
+        self.stkp -= 1;
+
+        self.pc = self.addr_abs;
+        0
     }
+
+    /// Load Accumulator with Memory
+    ///
+    /// A := M
+    ///
+    /// May set the N, Z flags.
+    ///
+    /// May need an additional clock cycle.
     pub fn lda(&mut self) -> u8 {
-        todo!()
+        self.fetch();
+
+        self.a = self.fetched;
+        self.set_negative();
+        self.set_zero();
+
+        1
     }
+
+    /// Load Index X with Memory
+    ///
+    /// X := M
+    ///
+    /// May need an additional clock cycle.
     pub fn ldx(&mut self) -> u8 {
-        todo!()
+        self.fetch();
+
+        self.x = self.fetched;
+        self.status.set(CpuFlags::N, self.x & 0x80 != 0);
+        self.status.set(CpuFlags::Z, self.x == 0);
+
+        1
     }
+
+    /// Load Index Y with Memory
+    ///
+    /// Y := M
+    ///
+    /// May need an additional clock cycle.
     pub fn ldy(&mut self) -> u8 {
-        todo!()
+        self.fetch();
+
+        self.y = self.fetched;
+        self.status.set(CpuFlags::N, self.y & 0x80 != 0);
+        self.status.set(CpuFlags::Z, self.y == 0);
+
+        1
     }
+
+    /// Shift One Bit Right (Memory or Accumulator)
+    ///
+    /// Shifts right the value either in memory or in the Accumulator
+    /// by 1
+    ///
+    /// May change the flags N, Z, C
     pub fn lsr(&mut self) -> u8 {
-        todo!()
+        self.fetch();
+
+        let result = (self.fetched as u16) >> 1;
+
+        // if the lowest bit was lost, set the Carry flag
+        self.status.set(CpuFlags::C, self.fetched & 0x01 != 0);
+        // cant use functions self.set_negative() and self.set_zero()
+        self.status.set(CpuFlags::N, result & 0x80 != 0);
+        self.status.set(CpuFlags::Z, result & 0xFF == 0);
+
+        // if the addresing mode is implied, write to the Accumulator
+        // otherwise, write to the memory
+        let addrmode = Instruction::lookup(self.opcode).addrmode;
+        if addrmode as usize == Cpu::imp as usize {
+            self.a = (result & 0xFF) as u8;
+        } else {
+            self.write(self.addr_abs, (result & 0xFF) as u8);
+        }
+
+        0
     }
+
+    /// No Operation
+    ///
+    /// No operation is executed.
+    ///
+    /// The following link presents the CPU illegal opcodes sometimes
+    /// used by NES games:
+    /// https://wiki.nesdev.com/w/index.php/CPU_unofficial_opcodes
+    ///
+    /// Some of the illegal opcodes represent NOP instructions. They
+    /// may require additional cycles.
     pub fn nop(&mut self) -> u8 {
-        todo!()
+        match self.opcode {
+            // may need additional cycles
+            0x1C => 1,
+            0x3C => 1,
+            0x5C => 1,
+            0x7C => 1,
+            0xDC => 1,
+            0xFC => 1,
+            // do not need additional cycles
+            _ => 0,
+        }
     }
+
+    /// OR Memory with Accumulator
+    ///
+    /// A := A | M
+    ///
+    /// May change the N, Z flags.
+    ///
+    /// May need an additional clock cycle.
     pub fn ora(&mut self) -> u8 {
-        todo!()
+        self.fetch();
+
+        self.a |= self.fetched;
+        self.set_negative();
+        self.set_zero();
+
+        1
     }
 
     /// Push Accumulator on Stack
@@ -521,14 +676,63 @@ impl Cpu {
         0
     }
 
+    /// Rotate One Bit Left (Memory or Accumulator)
+    ///
+    /// Shifts the value to the left. The carry flag is shifted into
+    /// bit 0 and the original bit 7 is shifted into the Carry flag.
+    ///
+    /// May change the N, Z, C flags.
     pub fn rol(&mut self) -> u8 {
-        todo!()
+        self.fetch();
+
+        let carry = u16::from(self.status.contains(CpuFlags::C));
+        let result = ((self.fetched as u16) << 1) | carry;
+
+        self.status.set(CpuFlags::C, result > 0xFF);
+        self.status.set(CpuFlags::N, result & 0x80 != 0);
+        self.status.set(CpuFlags::Z, result == 0);
+
+        let addrmode = Instruction::lookup(self.opcode).addrmode;
+        if addrmode as usize == Cpu::imp as usize {
+            self.a = (result & 0xFF) as u8;
+        } else {
+            self.write(self.addr_abs, (result & 0xFF) as u8);
+        }
+
+        0
     }
+
+    /// Rotate One Bit Right (Memory or Accumulator)
+    ///
+    /// Shifts the value to the right. The carry flag is shifted into
+    /// bit 7 and the original bit 0 is shifted into the Carry flag.
+    ///
+    /// May change the N, Z, C flags.
     pub fn ror(&mut self) -> u8 {
-        todo!()
+        self.fetch();
+
+        // if C is set, carry = 0b10000000
+        let carry = (u16::from(self.status.contains(CpuFlags::C))) << 7;
+        let result = ((self.fetched as u16) >> 1) | carry;
+
+        // bit 0 of the original value is 1
+        self.status.set(CpuFlags::C, self.fetched & 0x01 != 0);
+        self.status.set(CpuFlags::N, result & 0x80 != 0);
+        self.status.set(CpuFlags::Z, result == 0);
+
+        let addrmode = Instruction::lookup(self.opcode).addrmode;
+        if addrmode as usize == Cpu::imp as usize {
+            self.a = (result & 0xFF) as u8;
+        } else {
+            self.write(self.addr_abs, (result & 0xFF) as u8);
+        }
+
+        0
     }
 
     /// Return from interrupt
+    ///
+    /// Affects all flags.
     pub fn rti(&mut self) -> u8 {
         self.stkp += 1;
         let status = self.read(STACK_BASE + self.stkp as u16);
@@ -545,8 +749,21 @@ impl Cpu {
         0
     }
 
+    /// Return from Subroutine
+    ///
+    /// Pulls the address at the top of the stack and sets
+    /// the PC to it plus 1.
+    ///
+    /// Meant to be used with [`Cpu::jsr`]
     pub fn rts(&mut self) -> u8 {
-        todo!()
+        self.stkp += 1;
+        let low = self.read(STACK_BASE + self.stkp as u16) as u16;
+        self.stkp += 1;
+        let high = self.read(STACK_BASE + self.stkp as u16) as u16;
+
+        self.pc = ((high << 8) | low) + 1;
+        
+        0
     }
 
     /// Subtract Memory from Accumulator with Borrow
