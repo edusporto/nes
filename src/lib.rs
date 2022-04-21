@@ -6,3 +6,9 @@ pub mod bus;
 
 /// Module for the RAM used by the 6502 CPU.
 pub mod ram;
+
+/// Module for the Picture Processing Unit.
+pub mod ppu;
+
+/// Module for the game cartridge.
+pub mod cartridge;

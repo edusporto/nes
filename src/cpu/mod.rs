@@ -34,7 +34,7 @@ mod addressing;
 mod flags;
 mod instructions;
 
-use crate::bus::Bus;
+use crate::ram::{Ram, RAM_MIRROR};
 use flags::CpuFlags;
 use instructions::Instruction;
 
@@ -45,7 +45,10 @@ pub const STACK_BASE: u16 = 0x0100;
 pub struct Cpu {
     /// Representd the Bus which the CPU is connected to.
     /// The CPU has to connect to the Bus after being created.
-    pub bus: Option<Bus>,
+    // pub bus: Option<Bus>,
+
+    /// Random Access Memory, 2 kb size with mirrorring up to 8 kb
+    pub ram: Ram,
 
     /// Accumulator register
     pub a: u8,
@@ -91,7 +94,8 @@ pub struct Cpu {
 impl Cpu {
     pub fn new() -> Cpu {
         Cpu {
-            bus: None,
+            // bus: None,
+            ram: Ram::default(),
 
             a: 0,
             x: 0,
@@ -109,30 +113,32 @@ impl Cpu {
     }
 
     /// Connect a Bus to the CPU
-    pub fn connect_bus(&mut self, bus: Bus) {
-        self.bus = Some(bus);
-    }
+    // pub fn connect_bus(&mut self, bus: Bus) {
+    //     self.bus = Some(bus);
+    // }
 
     /// Write `data` to memory at address `addr`
     pub fn write(&mut self, addr: u16, data: u8) {
-        match &mut self.bus {
-            Some(bus) => bus.write(addr, data),
-            None => panic!(
-                "called `write` on unconnected CPU. \
-                consider calling Bus::connect_cpu"
-            ),
-        }
+        self.ram.write_mirrored(addr, data, RAM_MIRROR)
+        // match &mut self.bus {
+        //     Some(bus) => bus.write(addr, data),
+        //     None => panic!(
+        //         "called `write` on unconnected CPU. \
+        //         consider calling Bus::connect_cpu"
+        //     ),
+        // }
     }
 
     /// Read value from memory at address `addr`
     pub fn read(&self, addr: u16) -> u8 {
-        match &self.bus {
-            Some(bus) => bus.read(addr),
-            None => panic!(
-                "called `read` on unconnected CPU. \
-                consider calling Bus::connect_cpu"
-            ),
-        }
+        self.ram.read_mirrored(addr, RAM_MIRROR)
+        // match &self.bus {
+        //     Some(bus) => bus.read(addr),
+        //     None => panic!(
+        //         "called `read` on unconnected CPU. \
+        //         consider calling Bus::connect_cpu"
+        //     ),
+        // }
     }
 
     /// Reads from the address at the Program Counter
@@ -297,5 +303,11 @@ impl Cpu {
             self.fetched = self.read(self.addr_abs);
         }
         self.fetched
+    }
+}
+
+impl Default for Cpu {
+    fn default() -> Self {
+        Self::new()
     }
 }
