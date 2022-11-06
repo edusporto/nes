@@ -30,9 +30,9 @@
 //! * Address mode
 //! * Cycles
 
+pub mod instructions;
 mod addressing;
 mod flags;
-mod instructions;
 
 use crate::ram::{Ram, RAM_MIRROR};
 use flags::CpuFlags;

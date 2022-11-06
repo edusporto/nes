@@ -74,20 +74,61 @@ std::vector<Instruction> lookup =
     { "BEQ", "BEQ", "REL", 2 },{ "SBC", "SBC", "IZY", 5 },{ "???", "XXX", "IMP", 2 },{ "???", "XXX", "IMP", 8 },{ "???", "NOP", "IMP", 4 },{ "SBC", "SBC", "ZPX", 4 },{ "INC", "INC", "ZPX", 6 },{ "???", "XXX", "IMP", 6 },{ "SED", "SED", "IMP", 2 },{ "SBC", "SBC", "ABY", 4 },{ "NOP", "NOP", "IMP", 2 },{ "???", "XXX", "IMP", 7 },{ "???", "NOP", "IMP", 4 },{ "SBC", "SBC", "ABX", 4 },{ "INC", "INC", "ABX", 7 },{ "???", "XXX", "IMP", 7 },
 };
 
-int main() {
-    for (int opcode = 0; opcode < lookup.size(); opcode++) {
-        Instruction ins = lookup[opcode];
+enum Mode {
+    V1,
+    V2
+};
 
-        if (ins.name == "???") continue;
+int main(int argc, char *argv[]) {
+    Mode mode = V2;
+    if (argc > 1 && std::string(argv[1]) == "v1") {
+        mode = V1;
+    }
 
-        printf("pub const %s_%02X: Instruction = Instruction {\n", ins.name.c_str(), opcode);
-        printf("    name: \"%s\",\n", ins.name.c_str());
-        printf("    opcode: 0x%02X,\n", opcode);
-        printf("    cycles: %d,\n", ins.cycles);
-        printf("    addrmode: Cpu::%s,\n", lower(ins.addrmode).c_str());
-        printf("    execute: Cpu::%s,\n", lower(ins.operate).c_str());
-        printf("};\n");
-        printf("\n");
+    switch (mode) {
+        case V1:
+            for (int opcode = 0; opcode < lookup.size(); opcode++) {
+                Instruction ins = lookup[opcode];
+
+                if (ins.name == "???") continue;
+
+                printf("pub const %s_%02X: Instruction = Instruction {\n", ins.name.c_str(), opcode);
+                printf("    name: \"%s\",\n", ins.name.c_str());
+                printf("    opcode: 0x%02X,\n", opcode);
+                printf("    cycles: %d,\n", ins.cycles);
+                printf("    addrmode: Cpu::%s,\n", lower(ins.addrmode).c_str());
+                printf("    execute: Cpu::%s,\n", lower(ins.operate).c_str());
+                printf("};\n");
+                printf("\n");
+            }
+            break;
+
+        case V2:
+            printf("build_definitions![\n");
+
+            for (int opcode = 0; opcode < lookup.size(); opcode++) {
+                Instruction ins = lookup[opcode];
+
+                if (ins.name == "???") {
+                    ins.name = "XXX";
+                }
+
+                if (ins.operate == "XXX") {
+                    ins.operate = "NOP";
+                }
+
+                printf("    (X%02X_%s, 0x%02X, %d, Cpu::%s, Cpu::%s),\n",
+                    opcode,
+                    ins.name.c_str(),
+                    opcode,
+                    ins.cycles,
+                    lower(ins.addrmode).c_str(),
+                    lower(ins.operate).c_str()
+                );
+            }
+
+            printf("];\n");
+            break;
     }
 
     return 0;
