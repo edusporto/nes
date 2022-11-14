@@ -7,7 +7,7 @@
 //! 
 //! Having a concrete constant for each instruction of type `Instruction`
 //! allows for automatic documentation. To find information about a certain
-//! instruction, just take a look at its contant's documentation.
+//! instruction, just take a look at its constant's documentation.
 
 // This part is a bit long, although it used to be longer :)
 // It was generated with help from the program
