@@ -7,3 +7,5 @@ pub mod ram;
 pub mod ppu;
 
 pub mod cartridge;
+
+pub mod mapper;

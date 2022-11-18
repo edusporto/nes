@@ -43,7 +43,7 @@ pub const STACK_BASE: u16 = 0x0100;
 
 /// Defines a CPU and its registers
 pub struct Cpu {
-    /// Representd the Bus which the CPU is connected to.
+    /// Represents the Bus which the CPU is connected to.
     /// The CPU has to connect to the Bus after being created.
     // pub bus: Option<Bus>,
 

@@ -1,6 +1,4 @@
-// ====================================================
-// ============ Instruction implementations ===========
-// ====================================================
+///! Instruction implementations.
 
 use crate::cpu::flags::CpuFlags;
 use crate::cpu::{Cpu, STACK_BASE};
@@ -585,7 +583,7 @@ impl Cpu {
     ///
     /// The following link presents the CPU illegal opcodes sometimes
     /// used by NES games:
-    /// https://wiki.nesdev.com/w/index.php/CPU_unofficial_opcodes
+    /// <https://wiki.nesdev.com/w/index.php/CPU_unofficial_opcodes>
     ///
     /// Some of the illegal opcodes represent NOP instructions. They
     /// may require additional cycles.
