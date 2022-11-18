@@ -93,11 +93,7 @@ impl Cpu {
 
         // If the page is changed by the addition, an additional
         // clock cycle may be necessary
-        if self.addr_abs & 0xFF00 != high << 8 {
-            1
-        } else {
-            0
-        }
+        u8::from(self.addr_abs & 0xFF00 != high << 8)
     }
 
     /// Absolute addressing with X register offset
@@ -114,11 +110,7 @@ impl Cpu {
 
         // If the page is changed by the addition, an additional
         // clock cycle may be necessary
-        if self.addr_abs & 0xFF00 != high << 8 {
-            1
-        } else {
-            0
-        }
+        u8::from(self.addr_abs & 0xFF00 != high << 8)
     }
 
     /// Indirect addressing
@@ -183,11 +175,7 @@ impl Cpu {
 
         // If the page is changed by the addition, an additional
         // clock cycle may be necessary
-        if self.addr_abs & 0xFF00 != high << 8 {
-            1
-        } else {
-            0
-        }
+        u8::from(self.addr_abs & 0xFF00 != high << 8)
     }
 
     /// Relative addressing
