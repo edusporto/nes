@@ -5,7 +5,10 @@ use std::io::{self, Read, Seek, SeekFrom};
 
 use binread::{BinRead, BinReaderExt};
 
-#[derive(Clone, Debug)]
+use crate::mapper::mappers;
+use crate::mapper::Mapper;
+
+#[derive(Debug)]
 pub struct Cartridge {
     program_memory: Vec<u8>,
     character_memory: Vec<u8>,
@@ -13,6 +16,19 @@ pub struct Cartridge {
     mapper_id: u8,
     program_banks: u8,
     character_banks: u8,
+
+    mirror: CartridgeMirror,
+
+    mapper: Box<dyn Mapper>,
+}
+
+#[derive(Default, Clone, Debug)]
+pub enum CartridgeMirror {
+    #[default]
+    Horizontal,
+    Vertical,
+    OneScreenLow,
+    OneScreenHigh,
 }
 
 /// Format header for iNES
@@ -53,11 +69,11 @@ impl From<binread::Error> for Error {
 }
 
 impl Cartridge {
-    fn from_file(file_name: &str) -> Result<Cartridge, Error> {
-        Cartridge::read(&fs::read(file_name)?)
+    pub fn from_file(file_name: &str) -> Result<Cartridge, Error> {
+        Cartridge::from_bytes(&fs::read(file_name)?)
     }
 
-    fn read(bytes: &[u8]) -> Result<Cartridge, Error> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Cartridge, Error> {
         let mut reader = binread::io::Cursor::new(bytes);
 
         let header: CartridgeHeader = reader.read_be()?;
@@ -71,8 +87,14 @@ impl Cartridge {
         let mut character_memory: Vec<u8> = Vec::new();
 
         let mapper_id: u8 = ((header.mapper2 >> 4) << 4) | (header.mapper1 >> 4);
-        let mut program_banks: u8 = 0;
-        let mut character_banks: u8 = 0;
+        let program_banks: u8;
+        let character_banks: u8;
+
+        let mirror = if header.mapper1 & 0x01 != 0 {
+            CartridgeMirror::Vertical
+        } else {
+            CartridgeMirror::Horizontal
+        };
 
         let file_type: u8 = 1;
 
@@ -81,23 +103,63 @@ impl Cartridge {
             1 => {
                 program_banks = header.program_rom_chunks;
                 program_memory.resize(program_banks as usize * 16384, 0);
-                reader.read(&mut program_memory)?;
+                reader.read_exact(&mut program_memory)?;
 
                 character_banks = header.character_rom_chunks;
                 character_memory.resize(character_banks as usize * 8192, 0);
-                reader.read(&mut character_memory)?;
-            },
+                reader.read_exact(&mut character_memory)?;
+            }
             2 => todo!(),
             _ => return Err(Error::FileTypeError(file_type)),
+        };
+
+        let mapper = match mapper_id {
+            0 => Box::new(mappers::Mapper0::new(program_banks, character_banks)),
+            _ => todo!(),
         };
 
         Ok(Cartridge {
             program_memory,
             character_memory,
-            
+
             mapper_id,
             program_banks,
             character_banks,
+
+            mirror,
+            mapper,
         })
+    }
+
+    pub fn cpu_map_read(&self, addr: u16, data: u8) -> (bool, u8) {
+        let (mapped, mapped_addr) = self.mapper.cpu_map_read(addr);
+        match mapped {
+            true => (true, self.program_memory[mapped_addr as usize]),
+            false => (false, data),
+        }
+    }
+
+    pub fn cpu_map_write(&mut self, addr: u16, data: u8) -> (bool, u8) {
+        let (mapped, mapped_addr) = self.mapper.cpu_map_write(addr);
+        match mapped {
+            true => (true, self.program_memory[mapped_addr as usize]),
+            false => (false, data),
+        }
+    }
+
+    pub fn ppu_map_read(&self, addr: u16, data: u8) -> (bool, u8) {
+        let (mapped, mapped_addr) = self.mapper.ppu_map_read(addr);
+        match mapped {
+            true => (true, self.character_memory[mapped_addr as usize]),
+            false => (false, data),
+        }
+    }
+
+    pub fn ppu_map_write(&mut self, addr: u16, data: u8) -> (bool, u8) {
+        let (mapped, mapped_addr) = self.mapper.ppu_map_write(addr);
+        match mapped {
+            true => (true, self.character_memory[mapped_addr as usize]),
+            false => (false, data),
+        }
     }
 }
