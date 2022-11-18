@@ -27,15 +27,33 @@ pub struct Ppu {
     palette_table: [u8; 32],
 
     cartridge: Option<Rc<Cartridge>>,
+
+    clock_counter: i16,
+    scanline: i16,
 }
 
 impl Ppu {
     pub fn new() -> Ppu {
-        Ppu { cartridge: None }
+        Ppu {
+            cartridge: None,
+            name_table: [[0; 1024]; 2],
+            palette_table: [0; 32],
+            clock_counter: 0,
+            scanline: 0,
+        }
     }
 
     pub fn clock(&mut self) {
-        todo!();
+        self.clock_counter += 1;
+        if self.clock_counter >= 341 {
+            self.clock_counter = 0;
+
+            self.scanline += 1;
+            if self.scanline >= 261 {
+                self.scanline = -1;
+                // TODO: set `frame_complete` ?
+            }
+        }
     }
 
     pub fn insert_cartridge(&mut self, cartridge: Rc<Cartridge>) {
