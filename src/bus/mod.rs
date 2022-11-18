@@ -43,7 +43,16 @@ impl Bus {
         self.clock_counter = 0;
     }
 
-    pub fn clock(&mut self) {}
+    pub fn clock(&mut self) {
+        self.ppu.clock();
+
+        if self.clock_counter % 3 == 0 {
+            self.cpu.clock();
+        }
+
+        // TODO: Test if wrapping_add breaks anything
+        self.clock_counter = self.clock_counter.wrapping_add(1);
+    }
 
     pub fn write(&mut self, addr: u16, data: u8) {
         match addr {
