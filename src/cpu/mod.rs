@@ -30,9 +30,9 @@
 //! * Address mode
 //! * Cycles
 
-pub mod instructions;
 mod addressing;
 mod flags;
+pub mod instructions;
 
 use crate::ram::{Ram, RAM_MIRROR};
 use flags::CpuFlags;
@@ -232,7 +232,7 @@ impl Cpu {
     ///
     /// Takes 8 cycles.
     ///
-    /// Same as the above, but it doesn't check the I flag
+    /// Same as the _interrupt request_ (IRQ), but it doesn't check the I flag
     /// before executing.
     ///
     /// The PC will be set to the value pointed by the
