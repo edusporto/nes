@@ -1,52 +1,167 @@
 //! Module for the Picture Processing Unit.
 
+pub mod color;
+pub mod registers;
+mod rendering;
+
 use std::rc::Rc;
 
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
-use crate::cartridge::Cartridge;
+use crate::cartridge::{Cartridge, CartridgeMirror};
+use crate::ram::{AFTER_RAM_END, RAM_END};
+use registers::*;
 
 pub const PPU_ADDR_START: u16 = 0x2000;
 pub const PPU_ADDR_END: u16 = 0x3FFF;
 
 #[derive(FromPrimitive)]
 pub enum PPUReadWriteAddr {
-    Control = 0,
-    Mask = 1,
-    Status = 2,
-    OAMAddress = 3,
-    OAMData = 4,
-    Scroll = 5,
-    PPUAddress = 6,
-    PPUData = 7,
+    ControlFlag = 0,
+    MaskFlag = 1,
+    StatusFlag = 2,
+    OAMAddressFlag = 3,
+    OAMDataFlag = 4,
+    ScrollFlag = 5,
+    PPUAddressFlag = 6,
+    PPUDataFlag = 7,
 }
 
 pub struct Ppu {
     name_table: [[u8; 1024]; 2],
+    pattern_table: [[u8; 4096]; 2],
     palette_table: [u8; 32],
 
     cartridge: Option<Rc<Cartridge>>,
 
-    clock_counter: i16,
+    /// Non-maskable interrupt; allows the PPU to send
+    /// interrupts to the CPU
+    nmi: bool,
+    cycle: i16,
     scanline: i16,
+
+    status: registers::StatusReg,
+    mask: registers::MaskReg,
+    control: registers::ControlReg,
+
+    address_latch: u8,
+    ppu_data_buffer: u8,
+
+    /// VRAM address, used to index the VRAM
+    vram_addr: RamAddrData,
+    /// Temporary VRAM address, used for computations
+    tram_addr: RamAddrData,
+    /// Horizontal pixel offset. Vertical pixel offset
+    /// is defined within `vram_addr`.
+    fine_x: u8,
+
+    background_data: rendering::BackgroundData,
 }
 
 impl Ppu {
     pub fn new() -> Ppu {
         Ppu {
-            cartridge: None,
             name_table: [[0; 1024]; 2],
+            pattern_table: [[0; 4096]; 2],
             palette_table: [0; 32],
-            clock_counter: 0,
+            cartridge: None,
+            nmi: false,
+            cycle: 0,
             scanline: 0,
+            status: StatusReg::empty(),
+            mask: MaskReg::empty(),
+            control: ControlReg::empty(),
+            address_latch: 0,
+            ppu_data_buffer: 0,
+            vram_addr: RamAddrData(0),
+            tram_addr: RamAddrData(0),
+            fine_x: 0,
+            background_data: rendering::BackgroundData::default(),
         }
     }
 
     pub fn clock(&mut self) {
-        self.clock_counter += 1;
-        if self.clock_counter >= 341 {
-            self.clock_counter = 0;
+        match self.scanline {
+            // rendering portion
+            (-1..=239) => {
+                match (self.scanline, self.cycle) {
+                    (-1, 1) => {
+                        // start of new frame
+                        self.status.set(StatusReg::VERTICAL_BLANK, false)
+                    }
+                    (0, 0) => {
+                        // "odd frame" cycle skip
+                        self.cycle = 1;
+                    }
+                    (_, 2..=257) | (_, 321..=337) => {
+                        // update shifters
+
+                        // 8 cycle loop for background rendering
+                        match (self.cycle - 1) % 8 {
+                            0 => {
+                                // load background shifters
+
+                                // fetch next background tile ID
+                                self.background_data.next_tile_id =
+                                    self.ppu_read(0x2000 | self.vram_addr.0 & 0x0FFF);
+                            }
+                            2 => {
+                                self.background_data.next_tile_attrib = self.ppu_read(
+                                    0x23C0
+                                        | ((self.vram_addr.nametable_y() as u16) << 11)
+                                        | ((self.vram_addr.nametable_x() as u16) << 10)
+                                        | ((self.vram_addr.coarse_y() >> 2) << 3)
+                                        | (self.vram_addr.coarse_x() >> 2),
+                                );
+
+                                if self.vram_addr.coarse_y() & 0x02 != 0 {
+                                    // `>>=` is not the monadic bind :(
+                                    // x >>= y ≣ x = x >> y (weird symbol means equivalent)
+                                    self.background_data.next_tile_attrib >>= 4;
+                                }
+
+                                if self.vram_addr.coarse_x() & 0x02 != 0 {
+                                    self.background_data.next_tile_attrib >>= 2;
+                                }
+
+                                self.background_data.next_tile_attrib &= 0x03;
+                            }
+                            4 => {}
+                            6 => {}
+                            7 => {}
+                            _ => { /* do nothing */ }
+                        };
+
+                        if self.cycle == 256 {
+                            // increment scroll y
+                        }
+
+                        if self.cycle == 257 {
+                            // load background shifters
+                            // transfer address x
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            240 => { /* do nothing! */ }
+            (241..=260) => {
+                if self.scanline == 241 && self.cycle == 1 {
+                    // PPU has finished drawing, send interrupt signal to the CPU.
+                    // This allows the CPU to process data without interfering
+                    // with the PPU's drawing
+                    if self.control.contains(ControlReg::ENABLE_NMI) {
+                        self.nmi = true;
+                    }
+                }
+            }
+            _ => todo!(),
+        }
+
+        self.cycle += 1;
+        if self.cycle >= 341 {
+            self.cycle = 0;
 
             self.scanline += 1;
             if self.scanline >= 261 {
@@ -60,41 +175,125 @@ impl Ppu {
         self.cartridge = Some(cartridge)
     }
 
+    pub fn interrupt_sent(&self) -> bool {
+        self.nmi
+    }
+
+    pub fn interrupt_done(&mut self) {
+        self.nmi = false;
+    }
+
     pub fn cpu_write(&mut self, addr: u16, data: u8) {
         use PPUReadWriteAddr::*;
 
-        // only 8 entries
-        let addr = addr & 0x07;
+        let addr = addr & 0x07; // mirrors on 8 entres (3 bits)
 
         match FromPrimitive::from_u16(addr) {
-            Some(Control) => {}
-            Some(Mask) => {}
-            Some(Status) => {}
-            Some(OAMAddress) => {}
-            Some(OAMData) => {}
-            Some(Scroll) => {}
-            Some(PPUAddress) => {}
-            Some(PPUData) => {}
+            Some(ControlFlag) => {
+                self.control = ControlReg::from_bits_truncate(data);
+                self.tram_addr
+                    .set_nametable_x(self.control.contains(ControlReg::NAMETABLE_X));
+                self.tram_addr
+                    .set_nametable_y(self.control.contains(ControlReg::NAMETABLE_Y));
+            }
+            Some(MaskFlag) => {
+                self.mask = MaskReg::from_bits_truncate(data);
+            }
+            Some(StatusFlag) => {}
+            Some(OAMAddressFlag) => {}
+            Some(OAMDataFlag) => {}
+            Some(ScrollFlag) => match self.address_latch {
+                0 => {
+                    // write contains X offset
+                    self.fine_x = data & 0x07; // mirrors on 8 entries (3 bits)
+                    self.tram_addr.set_coarse_x((data >> 3) as u16); // TODO: test
+                    self.address_latch = 1;
+                }
+                _ => {
+                    // write contains Y offset
+                    self.tram_addr.set_fine_y((data & 0x07) as u16); // mirrors on 8 entries
+                    self.tram_addr.set_coarse_y((data >> 3) as u16); // TODO: test
+                    self.address_latch = 0;
+                }
+            },
+            Some(PPUAddressFlag) => match self.address_latch {
+                // allows the PPU address bus to be accessed by the CPU
+                0 => {
+                    // latches high byte of address
+                    self.tram_addr =
+                        RamAddrData(((data as u16 & 0x3F) << 8) | self.tram_addr.0 & 0x00FF);
+                    self.address_latch = 1;
+                }
+                _ => {
+                    // latches low byte of address
+                    self.tram_addr = RamAddrData((self.tram_addr.0 & 0x00FF) | data as u16);
+                    self.vram_addr = self.tram_addr;
+                    self.address_latch = 0;
+                }
+            },
+            Some(PPUDataFlag) => {
+                self.ppu_write(self.vram_addr.0, data);
+
+                // writes from PPU data increment the nametable
+                // increments by 32 if on vertical mode,
+                // increments by 1 if on horizontal mode
+                self.vram_addr = RamAddrData(
+                    self.vram_addr.0
+                        + if self.control.contains(ControlReg::INCREMENT_MODE) {
+                            32
+                        } else {
+                            1
+                        },
+                )
+            }
             _ => {}
         }
     }
 
-    pub fn cpu_read(&self, addr: u16) -> u8 {
+    pub fn cpu_read(&mut self, addr: u16) -> u8 {
         use PPUReadWriteAddr::*;
 
         // only 8 entries
         let addr = addr & 0x07;
-        let data: u8 = 0;
+        let mut data: u8 = 0;
 
         match FromPrimitive::from_u16(addr) {
-            Some(Control) => {}
-            Some(Mask) => {}
-            Some(Status) => {}
-            Some(OAMAddress) => {}
-            Some(OAMData) => {}
-            Some(Scroll) => {}
-            Some(PPUAddress) => {}
-            Some(PPUData) => {}
+            Some(ControlFlag) => {}
+            Some(MaskFlag) => {}
+            Some(StatusFlag) => {
+                // resets some parts of the circuit,
+                // bottom 5 bits of the status flag contains noise that may be
+                // used by games
+                data = (self.status.bits() & 0xE0) | (self.ppu_data_buffer & 0x1F);
+                self.status.set(StatusReg::VERTICAL_BLANK, false);
+                self.address_latch = 0;
+            }
+            Some(OAMAddressFlag) => {}
+            Some(OAMDataFlag) => {}
+            Some(ScrollFlag) => {}
+            Some(PPUAddressFlag) => {}
+            Some(PPUDataFlag) => {
+                // reads the PPU data with 1 cycle of delay
+                data = self.ppu_data_buffer;
+                // prepares the buffer for the next cycle
+                self.ppu_data_buffer = self.ppu_read(self.vram_addr.0);
+
+                // if the address was in the palette range, don't delay
+                if self.vram_addr.0 >= 0x3F00 {
+                    data = self.ppu_data_buffer;
+                }
+
+                // reads from PPU data increment the nametable address
+                // the same way it did on `self.cpu_write`
+                self.vram_addr = RamAddrData(
+                    self.vram_addr.0
+                        + if self.control.contains(ControlReg::INCREMENT_MODE) {
+                            32
+                        } else {
+                            1
+                        },
+                )
+            }
             _ => {}
         }
 
@@ -103,13 +302,118 @@ impl Ppu {
 
     pub fn ppu_write(&mut self, addr: u16, data: u8) {
         let addr: u16 = addr & PPU_ADDR_END;
+
+        let cart = self.cartridge.as_ref().expect("No cartridge inserted!");
+        let (mapped, _mapped_data) = cart.ppu_map_write(addr, data);
+
+        if mapped {
+            return;
+        }
+
+        match addr {
+            (0..=RAM_END) => {
+                self.pattern_table[(addr as usize & 0x1000) >> 12][addr as usize & 0x0FFF] = data;
+            }
+            (AFTER_RAM_END..=0x3EFF) => match cart.mirror {
+                CartridgeMirror::Vertical => match addr & 0x0FFF {
+                    (0x0000..=0x03FF) | (0x0800..=0x0BFF) => {
+                        self.name_table[0][addr as usize & 0x03FF] = data;
+                    }
+                    (0x0400..=0x07FF) | (0x0C00..=0x0FFF) => {
+                        self.name_table[1][addr as usize & 0x03FF] = data;
+                    }
+                    _ => { /* can't happen due to the mirror! */ }
+                },
+                CartridgeMirror::Horizontal => match addr & 0x0FFF {
+                    (0x0000..=0x07FF) => {
+                        self.name_table[0][addr as usize & 0x03FF] = data;
+                    }
+                    (0x0800..=0x0FFF) => {
+                        self.name_table[1][addr as usize & 0x03FF] = data;
+                    }
+                    _ => { /* can't happen due to the mirror! */ }
+                },
+                _ => {}
+            },
+            (0x3F00..=0x3FFF) => {
+                let addr = match addr & 0x001F {
+                    0x0010 => 0x0000,
+                    0x0014 => 0x0004,
+                    0x0018 => 0x0008,
+                    0x001C => 0x000C,
+                    _ => addr,
+                };
+                self.palette_table[addr as usize] = data;
+            }
+            _ => {}
+        }
     }
 
     pub fn ppu_read(&self, addr: u16) -> u8 {
-        let data: u8 = 0;
         let addr = addr & PPU_ADDR_END;
+        let mut data: u8 = 0;
+
+        let cart = self.cartridge.as_ref().expect("No cartridge inserted!");
+        let (mapped, _mapped_data) = cart.ppu_map_write(addr, data);
+
+        if mapped {
+            return data;
+        }
+
+        match addr {
+            (0..=RAM_END) => {
+                data = self.pattern_table[(addr as usize & 0x1000) >> 12][addr as usize & 0x0FFF];
+            }
+            (AFTER_RAM_END..=0x3EFF) => match cart.mirror {
+                CartridgeMirror::Vertical => match addr & 0x0FFF {
+                    (0x0000..=0x03FF) | (0x0800..=0x0BFF) => {
+                        data = self.name_table[0][addr as usize & 0x03FF];
+                    }
+                    (0x0400..=0x07FF) | (0x0C00..=0x0FFF) => {
+                        data = self.name_table[1][addr as usize & 0x03FF];
+                    }
+                    _ => { /* can't happen due to the mirror! */ }
+                },
+                CartridgeMirror::Horizontal => match addr & 0x0FFF {
+                    (0x0000..=0x07FF) => {
+                        data = self.name_table[0][addr as usize & 0x03FF];
+                    }
+                    (0x0800..=0x0FFF) => {
+                        data = self.name_table[1][addr as usize & 0x03FF];
+                    }
+                    _ => { /* can't happen due to the mirror! */ }
+                },
+                _ => {}
+            },
+            (0x3F00..=0x3FFF) => {
+                let addr = match addr & 0x001F {
+                    0x0010 => 0x0000,
+                    0x0014 => 0x0004,
+                    0x0018 => 0x0008,
+                    0x001C => 0x000C,
+                    _ => addr,
+                };
+                data = self.palette_table[addr as usize]
+                    & if self.mask.contains(MaskReg::GRAYSCALE) {
+                        0x30
+                    } else {
+                        0x3F
+                    }
+            }
+            _ => {}
+        };
 
         data
+    }
+
+    /// Returns a color from a palette and pixel index.
+    pub fn color_from_palette(&self, palette_index: u8, pixel_index: u8) -> color::Pixel {
+        // - 0x3F00 is the PPU offset where palettes are stored
+        // - Each palette is 4 bytes
+        // - Each pixel index if an integer from 0 to 3
+        // - The mirror "& 0x3F" prevents indexing `ALL_COLORS` out of bounds
+        let index = self.ppu_read(0x3F00 + (palette_index as u16 * 4) + pixel_index as u16) & 0x3F;
+        color::ALL_COLORS[index as usize]
     }
 }
 

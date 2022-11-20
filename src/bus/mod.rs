@@ -50,6 +50,11 @@ impl Bus {
             self.cpu.clock();
         }
 
+        if self.ppu.interrupt_sent() {
+            self.ppu.interrupt_done();
+            self.cpu.nmi();
+        }
+
         // TODO: Test if wrapping_add breaks anything
         self.clock_counter = self.clock_counter.wrapping_add(1);
     }
@@ -70,14 +75,15 @@ impl Bus {
         }
     }
 
-    pub fn read(&self, addr: u16) -> u8 {
+    pub fn read(&mut self, addr: u16) -> u8 {
         match addr {
             RAM_START..=RAM_END => {
                 // mirrors every 2kb
                 self.cpu.read(addr)
             }
             PPU_ADDR_START..=PPU_ADDR_END => {
-                // mirrors into 8 entries
+                // mirrors into 8 entries;
+                // `Bus::read` is mutable because of this
                 self.ppu.cpu_read(addr)
             }
             _ => panic!("invalid address used to read from RAM"),
