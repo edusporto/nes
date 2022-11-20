@@ -4,6 +4,7 @@
 //! add more mappers.
 
 use crate::mapper::Mapper;
+use crate::ram::RAM_END;
 
 #[derive(Debug)]
 pub struct Mapper0 {
@@ -42,14 +43,14 @@ impl Mapper for Mapper0 {
 
     fn ppu_map_read(&self, addr: u16) -> (bool, u32) {
         match addr {
-            (0x0000..=0x1FFF) => (true, addr as u32),
+            (0x0000..=RAM_END) => (true, addr as u32),
             _ => (false, addr as u32),
         }
     }
 
     fn ppu_map_write(&self, addr: u16) -> (bool, u32) {
         match addr {
-            (0x0000..=0x1FFF) if self.character_banks == 0 => (true, addr as u32),
+            (0x0000..=RAM_END) if self.character_banks == 0 => (true, addr as u32),
             _ => (false, addr as u32),
         }
     }

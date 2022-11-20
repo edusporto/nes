@@ -12,6 +12,11 @@ pub const RAM_START: u16 = 0x0000;
 /// can be accessed by 4 different addresses.
 pub const RAM_END: u16 = 0x1FFF;
 
+/// One byte after the end of RAM.
+///
+/// Helps code that depends on range pattern matching.
+pub const AFTER_RAM_END: u16 = 0x2000;
+
 /// RAM size (2 KB)
 pub const RAM_SIZE: usize = 1024 * 2;
 
