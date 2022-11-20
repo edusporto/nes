@@ -10,14 +10,14 @@ use crate::mapper::Mapper;
 
 #[derive(Debug)]
 pub struct Cartridge {
+    pub mirror: CartridgeMirror,
+
     program_memory: Vec<u8>,
     character_memory: Vec<u8>,
 
     mapper_id: u8,
     program_banks: u8,
     character_banks: u8,
-
-    mirror: CartridgeMirror,
 
     mapper: Box<dyn Mapper>,
 }
@@ -139,7 +139,7 @@ impl Cartridge {
         }
     }
 
-    pub fn cpu_map_write(&mut self, addr: u16, data: u8) -> (bool, u8) {
+    pub fn cpu_map_write(&self, addr: u16, data: u8) -> (bool, u8) {
         let (mapped, mapped_addr) = self.mapper.cpu_map_write(addr);
         match mapped {
             true => (true, self.program_memory[mapped_addr as usize]),
@@ -155,7 +155,7 @@ impl Cartridge {
         }
     }
 
-    pub fn ppu_map_write(&mut self, addr: u16, data: u8) -> (bool, u8) {
+    pub fn ppu_map_write(&self, addr: u16, data: u8) -> (bool, u8) {
         let (mapped, mapped_addr) = self.mapper.ppu_map_write(addr);
         match mapped {
             true => (true, self.character_memory[mapped_addr as usize]),
