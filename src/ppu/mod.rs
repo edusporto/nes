@@ -1,6 +1,6 @@
 //! Module for the Picture Processing Unit.
 
-pub mod color;
+pub mod drawing;
 pub mod registers;
 mod rendering;
 
@@ -29,6 +29,8 @@ pub enum PPUReadWriteAddr {
 }
 
 pub struct Ppu {
+    screen: drawing::screen::Screen<256, 240>,
+
     name_table: [[u8; 1024]; 2],
     pattern_table: [[u8; 4096]; 2],
     palette_table: [u8; 32],
@@ -56,12 +58,14 @@ pub struct Ppu {
     /// is defined within `vram_addr`.
     fine_x: u8,
 
-    background_data: rendering::BackgroundData,
+    /// Background data, used for rendering the background
+    bg: rendering::BackgroundData,
 }
 
 impl Ppu {
     pub fn new() -> Ppu {
         Ppu {
+            screen: drawing::screen::Screen::default(),
             name_table: [[0; 1024]; 2],
             pattern_table: [[0; 4096]; 2],
             palette_table: [0; 32],
@@ -77,72 +81,99 @@ impl Ppu {
             vram_addr: RamAddrData(0),
             tram_addr: RamAddrData(0),
             fine_x: 0,
-            background_data: rendering::BackgroundData::default(),
+            bg: rendering::BackgroundData::default(),
         }
+    }
+
+    pub fn screen(&self) -> &drawing::screen::Screen<256, 240> {
+        &self.screen
     }
 
     pub fn clock(&mut self) {
         match self.scanline {
             // rendering portion
             (-1..=239) => {
-                match (self.scanline, self.cycle) {
-                    (-1, 1) => {
-                        // start of new frame
-                        self.status.set(StatusReg::VERTICAL_BLANK, false)
-                    }
-                    (0, 0) => {
-                        // "odd frame" cycle skip
-                        self.cycle = 1;
-                    }
-                    (_, 2..=257) | (_, 321..=337) => {
-                        // update shifters
+                if self.scanline == -1 && self.cycle == 1 {
+                    // start of new frame
+                    self.status.set(StatusReg::VERTICAL_BLANK, false)
+                }
 
-                        // 8 cycle loop for background rendering
-                        match (self.cycle - 1) % 8 {
-                            0 => {
-                                // load background shifters
+                if self.scanline == 0 && self.cycle == 0 {
+                    // "odd frame" cycle skip
+                    self.cycle = 1;
+                }
 
-                                // fetch next background tile ID
-                                self.background_data.next_tile_id =
-                                    self.ppu_read(0x2000 | self.vram_addr.0 & 0x0FFF);
-                            }
-                            2 => {
-                                self.background_data.next_tile_attrib = self.ppu_read(
-                                    0x23C0
-                                        | ((self.vram_addr.nametable_y() as u16) << 11)
-                                        | ((self.vram_addr.nametable_x() as u16) << 10)
-                                        | ((self.vram_addr.coarse_y() >> 2) << 3)
-                                        | (self.vram_addr.coarse_x() >> 2),
-                                );
+                if (2..=257).contains(&self.cycle) || (321..=337).contains(&self.cycle) {
+                    self.update_shifters();
 
-                                if self.vram_addr.coarse_y() & 0x02 != 0 {
-                                    // `>>=` is not the monadic bind :(
-                                    // x >>= y ≣ x = x >> y (weird symbol means equivalent)
-                                    self.background_data.next_tile_attrib >>= 4;
-                                }
+                    // 8 cycle loop for background rendering
+                    match (self.cycle - 1) % 8 {
+                        0 => {
+                            self.load_backgrond_shifters();
 
-                                if self.vram_addr.coarse_x() & 0x02 != 0 {
-                                    self.background_data.next_tile_attrib >>= 2;
-                                }
-
-                                self.background_data.next_tile_attrib &= 0x03;
-                            }
-                            4 => {}
-                            6 => {}
-                            7 => {}
-                            _ => { /* do nothing */ }
-                        };
-
-                        if self.cycle == 256 {
-                            // increment scroll y
+                            // fetch next background tile ID
+                            self.bg.next_tile_id =
+                                self.ppu_read(0x2000 | self.vram_addr.0 & 0x0FFF);
                         }
+                        2 => {
+                            self.bg.next_tile_attrib = self.ppu_read(
+                                0x23C0
+                                    | ((self.vram_addr.nametable_y() as u16) << 11)
+                                    | ((self.vram_addr.nametable_x() as u16) << 10)
+                                    | ((self.vram_addr.coarse_y() >> 2) << 3)
+                                    | (self.vram_addr.coarse_x() >> 2),
+                            );
 
-                        if self.cycle == 257 {
-                            // load background shifters
-                            // transfer address x
+                            if self.vram_addr.coarse_y() & 0x02 != 0 {
+                                // `>>=` is not the monadic bind :(
+                                // x >>= y ≣ x = x >> y
+                                self.bg.next_tile_attrib >>= 4;
+                            }
+
+                            if self.vram_addr.coarse_x() & 0x02 != 0 {
+                                self.bg.next_tile_attrib >>= 2;
+                            }
+
+                            self.bg.next_tile_attrib &= 0x03;
                         }
+                        4 => {
+                            self.bg.next_tile_lsb = self.ppu_read(
+                                ((self.control.contains(ControlReg::PATTERN_BACKGROUND) as u16)
+                                    << 12)
+                                    + ((self.bg.next_tile_id as u16) << 4)
+                                    + (self.vram_addr.fine_y() + 0),
+                            );
+                        }
+                        6 => {
+                            self.bg.next_tile_msb = self.ppu_read(
+                                ((self.control.contains(ControlReg::PATTERN_BACKGROUND) as u16)
+                                    << 12)
+                                    + ((self.bg.next_tile_id as u16) << 4)
+                                    + (self.vram_addr.fine_y() + 8),
+                            );
+                        }
+                        7 => {
+                            self.increment_scroll_x();
+                        }
+                        _ => { /* do nothing */ }
+                    };
+
+                    if self.cycle == 256 {
+                        self.increment_scroll_y();
                     }
-                    _ => {}
+
+                    if self.cycle == 257 {
+                        self.load_backgrond_shifters();
+                        self.transfer_address_x();
+                    }
+
+                    if self.cycle == 338 || self.cycle == 340 {
+                        self.bg.next_tile_id = self.ppu_read(0x2000 | (self.vram_addr.0 & 0x0FFF));
+                    }
+
+                    if self.scanline == -1 && (280..=304).contains(&self.cycle) {
+                        self.transfer_address_y();
+                    }
                 }
             }
             240 => { /* do nothing! */ }
@@ -156,8 +187,32 @@ impl Ppu {
                     }
                 }
             }
-            _ => todo!(),
+            _ => {}
         }
+
+        let mut bg_pixel: u8 = 0; // 2 bit pixel index
+        let mut bg_palette: u8 = 0; // 3 bit palette index
+
+        // render the background
+        if self.mask.contains(MaskReg::RENDER_BACKGROUND) {
+            // handle pixel selection with smooth scrolling
+            let bit_mux: u16 = 0x8000 >> self.fine_x;
+
+            // get pixel index
+            let p0_pixel: u8 = u8::from((self.bg.shifter_pattern_low & bit_mux) > 0);
+            let p1_pixel: u8 = u8::from((self.bg.shifter_pattern_high & bit_mux) > 0);
+            bg_pixel = (p1_pixel << 1) | p0_pixel;
+
+            // get palette index
+            let bg_pal0 = u8::from((self.bg.shifter_attrib_low & bit_mux) > 0);
+            let bg_pal1 = u8::from((self.bg.shifter_attrib_high & bit_mux) > 0);
+            bg_palette = (bg_pal1 << 1) | bg_pal0;
+        }
+
+        self.screen.set_pixel(
+            (self.cycle as usize - 1, self.scanline as usize),
+            self.color_from_palette(bg_palette, bg_pixel),
+        );
 
         self.cycle += 1;
         if self.cycle >= 341 {
@@ -407,13 +462,13 @@ impl Ppu {
     }
 
     /// Returns a color from a palette and pixel index.
-    pub fn color_from_palette(&self, palette_index: u8, pixel_index: u8) -> color::Pixel {
+    pub fn color_from_palette(&self, palette_index: u8, pixel_index: u8) -> drawing::pixel::Pixel {
         // - 0x3F00 is the PPU offset where palettes are stored
         // - Each palette is 4 bytes
         // - Each pixel index if an integer from 0 to 3
         // - The mirror "& 0x3F" prevents indexing `ALL_COLORS` out of bounds
         let index = self.ppu_read(0x3F00 + (palette_index as u16 * 4) + pixel_index as u16) & 0x3F;
-        color::ALL_COLORS[index as usize]
+        drawing::pixel::ALL_COLORS[index as usize]
     }
 }
 

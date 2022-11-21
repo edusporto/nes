@@ -13,6 +13,12 @@ impl Pixel {
     }
 }
 
+impl Default for Pixel {
+    fn default() -> Self {
+        Pixel { r: 0, g: 0, b: 0 }
+    }
+}
+
 pub static ALL_COLORS: [Pixel; 64] = [
     Pixel::new(84, 84, 84),
     Pixel::new(0, 30, 116),
