@@ -1,10 +1,10 @@
 //! Module that defines each CPU instruction and the instructions'
 //! lookup table.
-//! 
+//!
 //! This module uses the `build_definitions`, `make_instructions`, and
 //! `make_lookup_table` macros found in the source code to generate
 //! a constant for each instruction and the lookup table.
-//! 
+//!
 //! Having a concrete constant for each instruction of type `Instruction`
 //! allows for automatic documentation. To find information about a certain
 //! instruction, just take a look at its constant's documentation.
@@ -36,7 +36,9 @@ macro_rules! build_definitions {
 /// compiler.
 ///
 /// For example, instruction definitions look like the following:
-/// ```
+/// ```rust,no_run
+/// use nes::cpu::instructions::Instruction;
+/// use nes::cpu::Cpu;
 /// pub const BRK_00: Instruction = Instruction {
 ///     name: "BRK",
 ///     opcode: 0x00,
@@ -49,14 +51,16 @@ macro_rules! make_instructions {
     ($(($name:ident, $opcode:expr, $cycles:expr, $addrmode:expr, $execute:expr)),* $(,)?) => {
         $(
             #[doc = concat!(
-                "```\n",
+                "```rust,ignore\n",
+                "use nes::cpu::instructions::Instruction;\n",
+                "use nes::cpu::Cpu;\n",
                 "pub const ", stringify!($name), ": Instruction = Instruction {\n",
                 "    name: \"", stringify!($name), "\",\n",
                 "    opcode: ", stringify!($opcode), ",\n",
                 "    cycles: ", stringify!($cycles), ",\n",
                 "    addrmode: ", stringify!($addrmode), ",\n",
                 "    execute: ", stringify!($execute), "\n",
-                "}\n",
+                "};\n",
                 "```\n"
             )]
             pub const $name: Instruction = Instruction {
@@ -70,12 +74,12 @@ macro_rules! make_instructions {
     };
 }
 
-/// Builds an array of size 256 that represents the 
+/// Builds an array of size 256 that represents the
 /// CPU instructions' lookup table.
 macro_rules! make_lookup_table {
     ($($name:ident),* $(,)?) => {
         /// Lookup table for the CPU instructions.
-        /// 
+        ///
         /// The instruction found at index `i` has opcode `i`.
         /// Some instructions are not defined by the CPU's standard.
         /// Their names contain the string XXX.
