@@ -2,7 +2,9 @@
 //!
 //! Every pixel drawn by the PPU will be written to the screen.
 
-use super::pixel::Pixel;
+pub mod pixel;
+
+use pixel::*;
 
 #[derive(Debug, Clone)]
 pub struct Screen<const WIDTH: usize, const HEIGHT: usize> {
@@ -16,8 +18,16 @@ impl<const WIDTH: usize, const HEIGHT: usize> Screen<WIDTH, HEIGHT> {
         }
     }
 
+    pub fn enumerate(&self) -> impl Iterator<Item = ((usize, usize), &Pixel)> {
+        (0..WIDTH).zip(0..HEIGHT).zip(self.pixels.iter().flatten())
+    }
+
     pub fn pixels(&self) -> &[[Pixel; HEIGHT]; WIDTH] {
         &self.pixels
+    }
+
+    pub fn mut_pixels(&mut self) -> &mut [[Pixel; HEIGHT]; WIDTH] {
+        &mut self.pixels
     }
 
     pub fn get_pixel(&self, (x, y): (usize, usize)) -> Pixel {

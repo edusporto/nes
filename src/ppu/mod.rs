@@ -1,6 +1,5 @@
 //! Module for the Picture Processing Unit.
 
-pub mod drawing;
 pub mod registers;
 mod rendering;
 
@@ -11,6 +10,7 @@ use num_traits::FromPrimitive;
 
 use crate::cartridge::{Cartridge, CartridgeMirror};
 use crate::ram::{AFTER_RAM_END, RAM_END};
+use crate::screen::{pixel, Screen};
 use registers::*;
 
 pub const PPU_ADDR_START: u16 = 0x2000;
@@ -29,7 +29,7 @@ pub enum PPUReadWriteAddr {
 }
 
 pub struct Ppu {
-    screen: drawing::screen::Screen<256, 240>,
+    screen: Screen<256, 240>,
 
     name_table: [[u8; 1024]; 2],
     pattern_table: [[u8; 4096]; 2],
@@ -65,7 +65,7 @@ pub struct Ppu {
 impl Ppu {
     pub fn new() -> Ppu {
         Ppu {
-            screen: drawing::screen::Screen::default(),
+            screen: Screen::default(),
             name_table: [[0; 1024]; 2],
             pattern_table: [[0; 4096]; 2],
             palette_table: [0; 32],
@@ -85,7 +85,7 @@ impl Ppu {
         }
     }
 
-    pub fn screen(&self) -> &drawing::screen::Screen<256, 240> {
+    pub fn screen(&self) -> &Screen<256, 240> {
         &self.screen
     }
 
@@ -462,13 +462,13 @@ impl Ppu {
     }
 
     /// Returns a color from a palette and pixel index.
-    pub fn color_from_palette(&self, palette_index: u8, pixel_index: u8) -> drawing::pixel::Pixel {
+    pub fn color_from_palette(&self, palette_index: u8, pixel_index: u8) -> pixel::Pixel {
         // - 0x3F00 is the PPU offset where palettes are stored
         // - Each palette is 4 bytes
         // - Each pixel index if an integer from 0 to 3
         // - The mirror "& 0x3F" prevents indexing `ALL_COLORS` out of bounds
         let index = self.ppu_read(0x3F00 + (palette_index as u16 * 4) + pixel_index as u16) & 0x3F;
-        drawing::pixel::ALL_COLORS[index as usize]
+        pixel::ALL_COLORS[index as usize]
     }
 }
 
