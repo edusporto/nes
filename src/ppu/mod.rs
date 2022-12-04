@@ -28,8 +28,10 @@ pub enum PPUReadWriteAddr {
     PPUDataFlag = 7,
 }
 
+#[derive(Clone, Debug)]
 pub struct Ppu {
     screen: Screen<256, 240>,
+    frame_complete: bool,
 
     name_table: [[u8; 1024]; 2],
     pattern_table: [[u8; 4096]; 2],
@@ -66,6 +68,7 @@ impl Ppu {
     pub fn new() -> Ppu {
         Ppu {
             screen: Screen::default(),
+            frame_complete: false,
             name_table: [[0; 1024]; 2],
             pattern_table: [[0; 4096]; 2],
             palette_table: [0; 32],
@@ -85,8 +88,31 @@ impl Ppu {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.fine_x = 0;
+        self.address_latch = 0;
+        self.ppu_data_buffer = 0;
+        self.scanline = 0;
+        self.cycle = 0;
+        self.bg = rendering::BackgroundData::default();
+        self.status = StatusReg::empty();
+        self.control = ControlReg::empty();
+        self.vram_addr = RamAddrData(0);
+        self.tram_addr = RamAddrData(0);
+    }
+
     pub fn screen(&self) -> &Screen<256, 240> {
         &self.screen
+    }
+
+    /// Returns the NES' screen when a frame is complete
+    pub fn get_frame(&mut self) -> Option<&Screen<256, 240>> {
+        if self.frame_complete {
+            self.frame_complete = false;
+            Some(&self.screen)
+        } else {
+            None
+        }
     }
 
     pub fn clock(&mut self) {
@@ -141,7 +167,7 @@ impl Ppu {
                                 ((self.control.contains(ControlReg::PATTERN_BACKGROUND) as u16)
                                     << 12)
                                     + ((self.bg.next_tile_id as u16) << 4)
-                                    + (self.vram_addr.fine_y() + 0),
+                                    + (self.vram_addr.fine_y()),
                             );
                         }
                         6 => {
@@ -221,7 +247,7 @@ impl Ppu {
             self.scanline += 1;
             if self.scanline >= 261 {
                 self.scanline = -1;
-                // TODO: set `frame_complete` ?
+                self.frame_complete = true;
             }
         }
     }
@@ -441,7 +467,8 @@ impl Ppu {
                 _ => {}
             },
             (0x3F00..=0x3FFF) => {
-                let addr = match addr & 0x001F {
+                let addr = addr & 0x001F;
+                let addr = match addr {
                     0x0010 => 0x0000,
                     0x0014 => 0x0004,
                     0x0018 => 0x0008,

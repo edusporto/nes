@@ -1,6 +1,6 @@
 //! Color information for the NES' PPU.
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct Pixel {
     pub r: u8,
     pub g: u8,
@@ -10,12 +10,6 @@ pub struct Pixel {
 impl Pixel {
     pub const fn new(r: u8, g: u8, b: u8) -> Self {
         Self { r, g, b }
-    }
-}
-
-impl Default for Pixel {
-    fn default() -> Self {
-        Pixel { r: 0, g: 0, b: 0 }
     }
 }
 

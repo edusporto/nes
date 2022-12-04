@@ -252,11 +252,10 @@ impl Cpu {
         self.stkp -= 1;
         self.status.set(CpuFlags::B, false);
 
-        // grabs the new program counter from the address 0xFFFE
-        let addr = 0xFFFE;
-        let low = self.read(addr) as u16;
-        let high = self.read(addr) as u16;
-        self.pc = (high << 8) | low;
+        // grabs the new program counter from the addresses 0xFFFE and 0xFFFF
+        let low = self.read(0xFFFE) as u16;
+        let high = self.read(0xFFFF) as u16;
+        self.pc = low | (high << 8);
         0
     }
 

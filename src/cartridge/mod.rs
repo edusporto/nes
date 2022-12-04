@@ -49,11 +49,24 @@ struct CartridgeHeader {
 ///
 /// - FileError: Could not read cartridge file
 /// - HeaderError: Could not read the file's header
+/// - FileTypeError: Unknown file type for cartridge
 #[derive(Debug)]
 pub enum Error {
     FileError(io::Error),
     HeaderError(binread::Error),
     FileTypeError(u8),
+}
+
+impl std::error::Error for Error {}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::FileError(_) => write!(f, "could not read ROM file"),
+            Error::HeaderError(_) => write!(f, "invalid header for ROM file"),
+            Error::FileTypeError(_) => write!(f, "unknown ROM file type"),
+        }
+    }
 }
 
 impl From<io::Error> for Error {

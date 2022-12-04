@@ -23,6 +23,7 @@ pub const RAM_SIZE: usize = 1024 * 2;
 pub const RAM_MIRROR: u16 = 0x07FF;
 
 /// Random Access Memory
+#[derive(Clone, Debug)]
 pub struct Ram {
     pub mem: Vec<u8>,
 }

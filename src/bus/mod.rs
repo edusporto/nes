@@ -7,16 +7,13 @@ use crate::cpu::Cpu;
 use crate::ppu::{Ppu, PPU_ADDR_END, PPU_ADDR_START};
 use crate::ram::{RAM_END, RAM_START};
 
-// The following constants will be expanded in the future.
-// Their purpose is to define the ranges of address that
-// each device connected to the Bus represents.
-
 /// Contains the possible devices connected to the CPU.
+#[derive(Clone, Debug)]
 pub struct Bus {
     pub cpu: Cpu,
     pub ppu: Ppu,
 
-    pub cartridge: Option<Rc<Cartridge>>,
+    cartridge: Option<Rc<Cartridge>>,
 
     clock_counter: u32,
 }
@@ -33,13 +30,15 @@ impl Bus {
         }
     }
 
-    pub fn insert_cartridge(&mut self, cartridge: Rc<Cartridge>) {
-        self.ppu.insert_cartridge(cartridge.clone());
-        self.cartridge = Some(cartridge);
+    pub fn insert_cartridge(&mut self, cartridge: Cartridge) {
+        let rc = Rc::new(cartridge);
+        self.ppu.insert_cartridge(rc.clone());
+        self.cartridge = Some(rc);
     }
 
     pub fn reset(&mut self) {
         self.cpu.reset();
+        self.ppu.reset();
         self.clock_counter = 0;
     }
 
@@ -64,8 +63,6 @@ impl Bus {
             RAM_START..=RAM_END => {
                 // mirrors every 2kb (0x07FF)
                 self.cpu.write(addr, data)
-                // let real_addr = addr & 0x07FF;
-                // self.ram.write(real_addr, data);
             }
             PPU_ADDR_START..=PPU_ADDR_END => {
                 // mirrors into 8 entries

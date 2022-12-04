@@ -22,6 +22,10 @@ impl<const WIDTH: usize, const HEIGHT: usize> Screen<WIDTH, HEIGHT> {
         (0..WIDTH).zip(0..HEIGHT).zip(self.pixels.iter().flatten())
     }
 
+    pub fn flatten(&self) -> impl Iterator<Item = &Pixel> {
+        self.pixels.iter().flatten()
+    }
+
     pub fn pixels(&self) -> &[[Pixel; HEIGHT]; WIDTH] {
         &self.pixels
     }
