@@ -34,7 +34,7 @@ mod addressing;
 mod flags;
 pub mod instructions;
 
-use crate::ram::{Ram, RAM_MIRROR};
+use crate::bus::Bus;
 use flags::CpuFlags;
 use instructions::Instruction;
 
@@ -44,12 +44,7 @@ pub const STACK_BASE: u16 = 0x0100;
 /// Defines a CPU and its registers
 #[derive(Clone, Debug)]
 pub struct Cpu {
-    /// Represents the Bus which the CPU is connected to.
-    /// The CPU has to connect to the Bus after being created.
-    // pub bus: Option<Bus>,
-
-    /// Random Access Memory, 2 kb size with mirrorring up to 8 kb
-    pub ram: Ram,
+    pub bus: Bus,
 
     /// Accumulator register
     pub a: u8,
@@ -90,13 +85,16 @@ pub struct Cpu {
     /// The relative memory address is used by
     /// branching instructions.
     addr_rel: u16,
+
+    /// Used by the `self.system_clock` function
+    /// to have the PPU clock faster than the CPU.
+    clock_counter: u32,
 }
 
 impl Cpu {
     pub fn new() -> Cpu {
         Cpu {
-            // bus: None,
-            ram: Ram::default(),
+            bus: Bus::new(),
 
             a: 0,
             x: 0,
@@ -110,40 +108,55 @@ impl Cpu {
             fetched: 0,
             addr_abs: 0,
             addr_rel: 0,
+
+            clock_counter: 0,
         }
     }
 
-    /// Connect a Bus to the CPU
-    // pub fn connect_bus(&mut self, bus: Bus) {
-    //     self.bus = Some(bus);
-    // }
+    /// **System clock cycle**
+    ///
+    /// Executes a clock cycle for all parts of the console,
+    /// namely, the CPU and PPU.
+    pub fn system_clock(&mut self) {
+        self.bus.ppu.clock();
+
+        if self.clock_counter % 3 == 0 {
+            self.clock();
+        }
+
+        if self.bus.ppu.interrupt_sent() {
+            self.bus.ppu.interrupt_done();
+            self.nmi();
+        }
+
+        // TODO: Test if wrapping_add breaks anything
+        self.clock_counter = self.clock_counter.wrapping_add(1);
+    }
+
+    /// **System reset**
+    ///
+    /// Resets the CPU and the PPU.
+    pub fn system_reset(&mut self) {
+        self.reset();
+        self.bus.reset();
+        self.clock_counter = 0;
+    }
 
     /// Write `data` to memory at address `addr`
     pub fn write(&mut self, addr: u16, data: u8) {
-        self.ram.write_mirrored(addr, data, RAM_MIRROR)
-        // match &mut self.bus {
-        //     Some(bus) => bus.write(addr, data),
-        //     None => panic!(
-        //         "called `write` on unconnected CPU. \
-        //         consider calling Bus::connect_cpu"
-        //     ),
-        // }
+        self.bus.write(addr, data);
     }
 
     /// Read value from memory at address `addr`
-    pub fn read(&self, addr: u16) -> u8 {
-        self.ram.read_mirrored(addr, RAM_MIRROR)
-        // match &self.bus {
-        //     Some(bus) => bus.read(addr),
-        //     None => panic!(
-        //         "called `read` on unconnected CPU. \
-        //         consider calling Bus::connect_cpu"
-        //     ),
-        // }
+    ///
+    /// This function is mutable because it can read from the
+    /// PPU, which is a mutable operation.
+    pub fn read(&mut self, addr: u16) -> u8 {
+        self.bus.read(addr)
     }
 
     /// Reads from the address at the Program Counter
-    pub fn read_from_pc(&self) -> u8 {
+    pub fn read_from_pc(&mut self) -> u8 {
         self.read(self.pc)
     }
 
@@ -223,7 +236,7 @@ impl Cpu {
 
         self.addr_abs = 0xFFFE;
         let low = self.read(self.addr_abs) as u16;
-        let high = self.read(self.addr_abs) as u16;
+        let high = self.read(self.addr_abs + 1) as u16;
         self.pc = (high << 8) | low;
 
         self.cycles = 7;

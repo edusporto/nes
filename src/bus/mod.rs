@@ -3,15 +3,16 @@
 use std::rc::Rc;
 
 use crate::cartridge::Cartridge;
-use crate::cpu::Cpu;
 use crate::ppu::{Ppu, PPU_ADDR_END, PPU_ADDR_START};
-use crate::ram::{RAM_END, RAM_START};
+use crate::ram::{Ram, RAM_END, RAM_MIRROR, RAM_START};
 
 /// Contains the possible devices connected to the CPU.
 #[derive(Clone, Debug)]
 pub struct Bus {
-    pub cpu: Cpu,
+    /// The console's Picture Processing Unit
     pub ppu: Ppu,
+    /// Random Access Memory, 2 kb size with mirrorring up to 8 kb
+    pub ram: Ram,
 
     cartridge: Option<Rc<Cartridge>>,
 
@@ -21,8 +22,8 @@ pub struct Bus {
 impl Bus {
     pub fn new() -> Bus {
         Bus {
-            cpu: Cpu::new(),
             ppu: Ppu::new(),
+            ram: Ram::default(),
 
             cartridge: None,
 
@@ -37,32 +38,15 @@ impl Bus {
     }
 
     pub fn reset(&mut self) {
-        self.cpu.reset();
         self.ppu.reset();
         self.clock_counter = 0;
-    }
-
-    pub fn clock(&mut self) {
-        self.ppu.clock();
-
-        if self.clock_counter % 3 == 0 {
-            self.cpu.clock();
-        }
-
-        if self.ppu.interrupt_sent() {
-            self.ppu.interrupt_done();
-            self.cpu.nmi();
-        }
-
-        // TODO: Test if wrapping_add breaks anything
-        self.clock_counter = self.clock_counter.wrapping_add(1);
     }
 
     pub fn write(&mut self, addr: u16, data: u8) {
         match addr {
             RAM_START..=RAM_END => {
                 // mirrors every 2kb (0x07FF)
-                self.cpu.write(addr, data)
+                self.ram.write_mirrored(addr, data, RAM_MIRROR);
             }
             PPU_ADDR_START..=PPU_ADDR_END => {
                 // mirrors into 8 entries
@@ -76,14 +60,16 @@ impl Bus {
         match addr {
             RAM_START..=RAM_END => {
                 // mirrors every 2kb
-                self.cpu.read(addr)
+                self.ram.read_mirrored(addr, RAM_MIRROR)
             }
             PPU_ADDR_START..=PPU_ADDR_END => {
                 // mirrors into 8 entries;
                 // `Bus::read` is mutable because of this
                 self.ppu.cpu_read(addr)
             }
-            _ => panic!("invalid address used to read from RAM"),
+            // TODO: find out if this should panic or not
+            _ => 0,
+            // _ => panic!("invalid address used to read from RAM, {:#4X}", addr),
         }
     }
 }

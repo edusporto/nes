@@ -50,7 +50,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .unwrap();
         }
 
-        nes.clock();
+        nes.system_clock();
     }
 
     Ok(())
