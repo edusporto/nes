@@ -6,8 +6,8 @@ pub mod ppu;
 pub mod ram;
 pub mod screen;
 
-use crate::cpu::Cpu;
 use crate::cartridge::Cartridge;
+use crate::cpu::Cpu;
 use crate::screen::Screen;
 
 pub const SCREEN_WIDTH: usize = 256;
@@ -20,7 +20,9 @@ pub struct Nes {
 
 impl Nes {
     pub fn new() -> Self {
-        Self { cpu: Cpu::new() }
+        let mut nes = Self { cpu: Cpu::new() };
+        nes.cpu.system_reset();
+        nes
     }
 
     pub fn insert_cartridge(&mut self, cartridge: Cartridge) {
