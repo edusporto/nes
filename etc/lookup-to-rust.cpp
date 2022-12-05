@@ -113,10 +113,6 @@ int main(int argc, char *argv[]) {
                     ins.name = "XXX";
                 }
 
-                if (ins.operate == "XXX") {
-                    ins.operate = "NOP";
-                }
-
                 printf("    (X%02X_%s, 0x%02X, %d, Cpu::%s, Cpu::%s),\n",
                     opcode,
                     ins.name.c_str(),

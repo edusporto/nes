@@ -1,5 +1,4 @@
 ///! Instruction implementations.
-
 use crate::cpu::flags::CpuFlags;
 use crate::cpu::{Cpu, STACK_BASE};
 
@@ -75,9 +74,10 @@ impl Cpu {
         // 0 or 1
         let c = u8::from(self.status.contains(CpuFlags::C));
 
-        let addition = (self.a as u16)
-            .wrapping_add(self.fetched as u16)
-            .wrapping_add(c as u16);
+        // Impossible for addition below to overflow on our machine
+        // since the result is `u16`, we will later check if the addition
+        // overflowed considering only the lower 8 bits
+        let addition = self.a as u16 + self.fetched as u16 + c as u16;
 
         // If the result is over 0xFF, a carry bit is needed
         self.status.set(CpuFlags::C, addition > 0xFF);
@@ -195,7 +195,8 @@ impl Cpu {
         self.fetch();
 
         let result = self.a & self.fetched;
-        self.status.set(CpuFlags::Z, result == 0);
+        // 0xFF to keep consistency
+        self.status.set(CpuFlags::Z, result & 0xFF == 0);
         self.status.set(CpuFlags::N, self.fetched & (1 << 7) != 0);
         self.status.set(CpuFlags::V, self.fetched & (1 << 6) != 0);
 
@@ -315,7 +316,7 @@ impl Cpu {
     ///
     /// Compares the value in memory to the value in the Accumulator.
     ///
-    /// C := A < M,
+    /// C := A >= M,
     /// Z := (A - M) == 0
     ///
     /// May change the C, Z, N flags.
@@ -324,9 +325,10 @@ impl Cpu {
     pub fn cmp(&mut self) -> u8 {
         self.fetch();
 
+        // TODO: may be a source of bug
         let result = (self.a as u16).wrapping_sub(self.fetched as u16);
 
-        self.status.set(CpuFlags::C, self.a < self.fetched);
+        self.status.set(CpuFlags::C, self.a >= self.fetched);
         self.status.set(CpuFlags::Z, result & 0xFF == 0);
         self.status.set(CpuFlags::N, result & 0x80 != 0);
 
@@ -337,7 +339,7 @@ impl Cpu {
     ///
     /// Compares the value in memory to the value in the X register.
     ///
-    /// C := X < M,
+    /// C := X >= M,
     /// Z := (X - M) == 0
     ///
     /// May change the C, Z, N flags.
@@ -346,7 +348,7 @@ impl Cpu {
 
         let result = (self.x as u16).wrapping_sub(self.fetched as u16);
 
-        self.status.set(CpuFlags::C, self.x < self.fetched);
+        self.status.set(CpuFlags::C, self.x >= self.fetched);
         self.status.set(CpuFlags::Z, result & 0xFF == 0);
         self.status.set(CpuFlags::N, result & 0x80 != 0);
 
@@ -357,7 +359,7 @@ impl Cpu {
     ///
     /// Compares the value in memory to the value in the X register.
     ///
-    /// C := Y < M,
+    /// C := Y >= M,
     /// Z := (Y - M) == 0
     ///
     /// May change the C, Z, N flags.
@@ -366,7 +368,7 @@ impl Cpu {
 
         let result = (self.y as u16).wrapping_sub(self.fetched as u16);
 
-        self.status.set(CpuFlags::C, self.y < self.fetched);
+        self.status.set(CpuFlags::C, self.y >= self.fetched);
         self.status.set(CpuFlags::Z, result & 0xFF == 0);
         self.status.set(CpuFlags::N, result & 0x80 != 0);
 
@@ -385,7 +387,7 @@ impl Cpu {
 
         self.write(self.addr_abs, new);
         self.status.set(CpuFlags::N, new & 0x80 != 0);
-        self.status.set(CpuFlags::Z, new == 0);
+        self.status.set(CpuFlags::Z, new & 0xFF == 0);
 
         0
     }
@@ -398,7 +400,7 @@ impl Cpu {
     pub fn dex(&mut self) -> u8 {
         self.x = self.x.wrapping_sub(1);
         self.status.set(CpuFlags::N, self.x & 0x80 != 0);
-        self.status.set(CpuFlags::Z, self.x == 0);
+        self.status.set(CpuFlags::Z, self.x & 0xFF == 0);
         0
     }
 
@@ -410,7 +412,7 @@ impl Cpu {
     pub fn dey(&mut self) -> u8 {
         self.y = self.y.wrapping_sub(1);
         self.status.set(CpuFlags::N, self.y & 0x80 != 0);
-        self.status.set(CpuFlags::Z, self.y == 0);
+        self.status.set(CpuFlags::Z, self.y & 0xFF == 0);
         0
     }
 
@@ -445,7 +447,7 @@ impl Cpu {
 
         self.write(self.addr_abs, new);
         self.status.set(CpuFlags::N, new & 0x80 != 0);
-        self.status.set(CpuFlags::Z, new == 0);
+        self.status.set(CpuFlags::Z, new & 0xFF == 0);
 
         0
     }
@@ -458,7 +460,7 @@ impl Cpu {
     pub fn inx(&mut self) -> u8 {
         self.x = self.x.wrapping_add(1);
         self.status.set(CpuFlags::N, self.x & 0x80 != 0);
-        self.status.set(CpuFlags::Z, self.x == 0);
+        self.status.set(CpuFlags::Z, self.x & 0xFF == 0);
         0
     }
 
@@ -470,7 +472,7 @@ impl Cpu {
     pub fn iny(&mut self) -> u8 {
         self.y = self.y.wrapping_add(1);
         self.status.set(CpuFlags::N, self.y & 0x80 != 0);
-        self.status.set(CpuFlags::Z, self.y == 0);
+        self.status.set(CpuFlags::Z, self.y & 0xFF == 0);
         0
     }
 
@@ -668,7 +670,7 @@ impl Cpu {
     pub fn plp(&mut self) -> u8 {
         self.stkp += 1;
         let status = self.read(STACK_BASE + self.stkp as u16);
-        self.status = CpuFlags::from_bits(status).unwrap();
+        self.status = CpuFlags::from_bits_truncate(status);
         self.status.set(CpuFlags::U, true);
         0
     }
@@ -687,7 +689,7 @@ impl Cpu {
 
         self.status.set(CpuFlags::C, result > 0xFF);
         self.status.set(CpuFlags::N, result & 0x80 != 0);
-        self.status.set(CpuFlags::Z, result == 0);
+        self.status.set(CpuFlags::Z, result & 0xFF == 0);
 
         let addrmode = Instruction::lookup(self.opcode).addrmode;
         if addrmode as usize == Cpu::imp as usize {
@@ -710,12 +712,12 @@ impl Cpu {
 
         // if C is set, carry = 0b10000000
         let carry = (u16::from(self.status.contains(CpuFlags::C))) << 7;
-        let result = ((self.fetched as u16) >> 1) | carry;
+        let result = carry | ((self.fetched as u16) >> 1);
 
         // bit 0 of the original value is 1
         self.status.set(CpuFlags::C, self.fetched & 0x01 != 0);
         self.status.set(CpuFlags::N, result & 0x80 != 0);
-        self.status.set(CpuFlags::Z, result == 0);
+        self.status.set(CpuFlags::Z, result & 0xFF == 0);
 
         let addrmode = Instruction::lookup(self.opcode).addrmode;
         if addrmode as usize == Cpu::imp as usize {
@@ -733,15 +735,14 @@ impl Cpu {
     pub fn rti(&mut self) -> u8 {
         self.stkp += 1;
         let status = self.read(STACK_BASE + self.stkp as u16);
-        self.status = CpuFlags::from_bits(status).unwrap();
-        self.status.set(CpuFlags::B, false);
+        self.status = CpuFlags::from_bits_truncate(status);
+        self.status.set(CpuFlags::B, false); // TODO: is this it?
         self.status.set(CpuFlags::U, false);
 
         self.stkp += 1;
-        let low = self.read(STACK_BASE + self.stkp as u16) as u16;
+        self.pc = self.read(STACK_BASE + self.stkp as u16) as u16;
         self.stkp += 1;
-        let high = self.read(STACK_BASE + self.stkp as u16) as u16;
-        self.pc = (high << 8) | low;
+        self.pc |= (self.read(STACK_BASE + self.stkp as u16) as u16) << 8;
 
         0
     }
@@ -754,11 +755,10 @@ impl Cpu {
     /// Meant to be used with [`Cpu::jsr`]
     pub fn rts(&mut self) -> u8 {
         self.stkp += 1;
-        let low = self.read(STACK_BASE + self.stkp as u16) as u16;
+        self.pc = self.read(STACK_BASE + self.stkp as u16) as u16;
         self.stkp += 1;
-        let high = self.read(STACK_BASE + self.stkp as u16) as u16;
-
-        self.pc = ((high << 8) | low) + 1;
+        self.pc |= (self.read(STACK_BASE + self.stkp as u16) as u16) << 8;
+        self.pc += 1;
 
         0
     }
@@ -782,14 +782,13 @@ impl Cpu {
         self.fetch();
 
         // Changes the value of self.fetched to reflect the discussion above
-        self.fetched = !self.fetched;
+        let fetched_not = !self.fetched;
 
         // 0 or 1
         let c = u8::from(self.status.contains(CpuFlags::C));
 
-        let addition = (self.a as u16)
-            .wrapping_add(self.fetched as u16)
-            .wrapping_add(c as u16);
+        // Can't overflow due to the same reasons found in `Cpu::adc`
+        let addition = self.a as u16 + fetched_not as u16 + c as u16;
 
         // If the result is over 0xFF, a carry bit is needed
         self.status.set(CpuFlags::C, addition > 0xFF);
@@ -809,7 +808,7 @@ impl Cpu {
         // positive, an overflow happened.
         // * Otherwise, no overflow happened.
         let acc_pos = self.a & 0x80 == 0;
-        let mem_pos = self.fetched & 0x80 == 0;
+        let mem_pos = fetched_not & 0x80 == 0;
         let res_pos = addition & 0x80 == 0;
         let overflow = (acc_pos && mem_pos && !res_pos) || (!acc_pos && !mem_pos && res_pos);
         self.status.set(CpuFlags::V, overflow);
@@ -876,8 +875,8 @@ impl Cpu {
     pub fn tax(&mut self) -> u8 {
         self.x = self.a;
 
-        self.set_negative();
-        self.set_zero();
+        self.status.set(CpuFlags::N, self.x & 0x80 != 0);
+        self.status.set(CpuFlags::Z, self.x & 0xFF == 0);
 
         0
     }
@@ -890,13 +889,13 @@ impl Cpu {
     pub fn tay(&mut self) -> u8 {
         self.y = self.a;
 
-        self.set_negative();
-        self.set_zero();
+        self.status.set(CpuFlags::N, self.y & 0x80 != 0);
+        self.status.set(CpuFlags::Z, self.y & 0xFF == 0);
 
         0
     }
 
-    /// Transfer Stack Pointer to Index Y
+    /// Transfer Stack Pointer to Index X
     ///
     /// X := STKP
     ///
@@ -905,7 +904,7 @@ impl Cpu {
         self.x = self.stkp;
 
         self.status.set(CpuFlags::N, self.x & 0x80 != 0);
-        self.status.set(CpuFlags::Z, self.x == 0);
+        self.status.set(CpuFlags::Z, self.x & 0xFF == 0);
 
         0
     }
@@ -941,6 +940,11 @@ impl Cpu {
         self.set_negative();
         self.set_zero();
 
+        0
+    }
+
+    /// Captures illegal opcodes
+    pub fn xxx(&mut self) -> u8 {
         0
     }
 }

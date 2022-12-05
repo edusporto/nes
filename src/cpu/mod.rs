@@ -268,7 +268,7 @@ impl Cpu {
 
         self.addr_abs = 0xFFFA;
         let low = self.read(self.addr_abs) as u16;
-        let high = self.read(self.addr_abs) as u16;
+        let high = self.read(self.addr_abs + 1) as u16;
         self.pc = (high << 8) | low;
 
         self.cycles = 8;
@@ -288,6 +288,9 @@ impl Cpu {
         // Read opcode from address at the Program Counter
         let opcode = self.read_inc_pc();
 
+        // Must be always set to true
+        self.status.set(CpuFlags::U, true);
+
         let ins = Instruction::lookup(opcode);
 
         // Each instructions needs a different amount of
@@ -303,6 +306,9 @@ impl Cpu {
         cycles += add_cycle1 & add_cycle2;
 
         self.cycles = cycles;
+
+        // Must be always set to true
+        self.status.set(CpuFlags::U, true);
 
         self.cycles -= 1;
     }
@@ -324,4 +330,25 @@ impl Default for Cpu {
     fn default() -> Self {
         Self::new()
     }
+}
+
+#[test]
+fn test_fn_equality() {
+    assert_eq!(Cpu::imp as usize, Cpu::imp as usize);
+
+    let addr_modes = [
+        Cpu::imm,
+        Cpu::zp0,
+        Cpu::zpx,
+        Cpu::zpy,
+        Cpu::abs,
+        Cpu::abx,
+        Cpu::aby,
+        Cpu::ind,
+        Cpu::izx,
+        Cpu::izy,
+        Cpu::rel,
+    ];
+
+    addr_modes.iter().for_each(|&mode| assert_ne!(mode as usize, Cpu::imp as usize));
 }

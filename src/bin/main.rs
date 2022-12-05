@@ -22,6 +22,13 @@ fn update_buffer(buffer: &mut [u32], nes: &mut Nes) -> bool {
     } else {
         false
     }
+
+    // nes.screen().flatten().enumerate().for_each(|(i, pixel)| {
+    //     let val: u32 =
+    //         ((pixel.r as u32) << 16) | ((pixel.g as u32) << 8) | ((pixel.b as u32) << 0);
+    //     buffer[i] = val;
+    // });
+    // true
 }
 
 fn main() -> Result<(), Box<dyn Error>> {

@@ -39,6 +39,7 @@ impl Cpu {
         // Doing this, the higher 8 bits can only be 0x00, which is
         // page 0x00
         self.addr_abs = self.read_inc_pc() as u16;
+        self.addr_abs &= 0x00FF; // just to be sure
         0
     }
 
@@ -47,11 +48,8 @@ impl Cpu {
     /// Same as the above, but with an offset to the desired address
     /// as set by the X register
     pub fn zpx(&mut self) -> u8 {
-        self.zp0();
-        self.addr_abs += self.x as u16;
-        // prevents changing page
-        self.addr_abs &= 0x00FF;
-        // increments PC
+        self.addr_abs = self.read_inc_pc() as u16 + self.x as u16;
+        self.addr_abs &= 0x00FF; // prevents changing page
         0
     }
 
@@ -59,11 +57,8 @@ impl Cpu {
     ///
     /// Same as the above, but the offset is set by the Y register
     pub fn zpy(&mut self) -> u8 {
-        self.zp0();
-        self.addr_abs += self.y as u16;
-        // prevents changing page
-        self.addr_abs &= 0x00FF;
-        // increments PC
+        self.addr_abs = self.read_inc_pc() as u16 + self.y as u16;
+        self.addr_abs &= 0x00FF; // prevents changing page
         0
     }
 
@@ -125,17 +120,19 @@ impl Cpu {
 
         let pointer = (pointer_high << 8) | pointer_low;
 
-        let low = self.read(pointer) as u16;
-        let mut high = self.read(pointer + 1) as u16;
-
-        // There is a bug on this addressing mode, which creates
-        // functionality that some 6502 programs use. Because of
-        // this, we will implement the bug.
         if pointer_low == 0x00FF {
-            high = self.read(pointer & 0xFF00) as u16;
+            // There is a bug on this addressing mode, which creates
+            // functionality that some 6502 programs use. Because of
+            // this, we will implement the bug.
+            let low = self.read(pointer) as u16;
+            let high = self.read(pointer & 0xFF00) as u16;
+            self.addr_abs = (high << 8) | low;
+        } else {
+            // Normal behaviour
+            let low = self.read(pointer) as u16;
+            let high = self.read(pointer + 1) as u16;
+            self.addr_abs = (high << 8) | low;
         }
-
-        self.addr_abs = (high << 8) | low;
         0
     }
 
