@@ -10,13 +10,13 @@ use pixel::*;
 
 #[derive(Debug, Clone)]
 pub struct Screen<const WIDTH: usize, const HEIGHT: usize> {
-    pixels: [[Pixel; HEIGHT]; WIDTH],
+    pixels: [[Pixel; WIDTH]; HEIGHT],
 }
 
 impl<const WIDTH: usize, const HEIGHT: usize> Screen<WIDTH, HEIGHT> {
     pub fn new() -> Self {
         Screen {
-            pixels: [[Pixel::default(); HEIGHT]; WIDTH],
+            pixels: [[Pixel::default(); WIDTH]; HEIGHT],
         }
     }
 
@@ -30,16 +30,16 @@ impl<const WIDTH: usize, const HEIGHT: usize> Screen<WIDTH, HEIGHT> {
         self.pixels.iter().flatten()
     }
 
-    pub fn pixels(&self) -> &[[Pixel; HEIGHT]; WIDTH] {
+    pub fn pixels(&self) -> &[[Pixel; WIDTH]; HEIGHT] {
         &self.pixels
     }
 
-    pub fn mut_pixels(&mut self) -> &mut [[Pixel; HEIGHT]; WIDTH] {
+    pub fn mut_pixels(&mut self) -> &mut [[Pixel; WIDTH]; HEIGHT] {
         &mut self.pixels
     }
 
     pub fn get_pixel(&self, (x, y): (usize, usize)) -> Pixel {
-        if (0..WIDTH).contains(&x) && (0..HEIGHT).contains(&y) {
+        if (0..HEIGHT).contains(&x) && (0..WIDTH).contains(&y) {
             self.pixels[x][y]
         } else {
             Pixel::default()
@@ -47,7 +47,7 @@ impl<const WIDTH: usize, const HEIGHT: usize> Screen<WIDTH, HEIGHT> {
     }
 
     pub fn set_pixel(&mut self, (x, y): (usize, usize), pixel: Pixel) {
-        if (0..WIDTH).contains(&x) && (0..HEIGHT).contains(&y) {
+        if (0..HEIGHT).contains(&x) && (0..WIDTH).contains(&y) {
             self.pixels[x][y] = pixel;
         }
     }
