@@ -19,8 +19,9 @@ pub struct Nes {
 }
 
 impl Nes {
-    pub fn new() -> Self {
+    pub fn new(cartridge: Cartridge) -> Self {
         let mut nes = Self { cpu: Cpu::new() };
+        nes.cpu.bus.insert_cartridge(cartridge);
         nes.cpu.system_reset();
         nes
     }
@@ -33,11 +34,19 @@ impl Nes {
         self.cpu.bus.ppu.screen()
     }
 
-    pub fn get_frame(&mut self) -> Option<&Screen<256, 240>> {
-        self.cpu.bus.ppu.get_frame()
+    pub fn next_frame(&mut self) -> &Screen<256, 240> {
+        while !self.cpu.bus.ppu.screen_ready() {
+            self.system_clock();
+        }
+
+        self.screen()
     }
 
     pub fn system_clock(&mut self) {
         self.cpu.system_clock();
+    }
+
+    pub fn system_reset(&mut self) {
+        self.cpu.system_reset();
     }
 }

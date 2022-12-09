@@ -1,63 +1,59 @@
 use std::error::Error;
 
 use nes::cartridge::Cartridge;
+use nes::screen::Screen;
 use nes::{Nes, SCREEN_HEIGHT, SCREEN_WIDTH};
 
-use minifb::{Key, Window, WindowOptions};
+use minifb::{Key, Scale, Window, WindowOptions};
 
 fn game() -> Result<Nes, Box<dyn Error>> {
-    let mut nes = Nes::new();
-    nes.insert_cartridge(Cartridge::from_file("games/Donkey Kong.nes")?);
+    let nes = Nes::new(Cartridge::from_file("games/Micro Mages.nes")?);
     Ok(nes)
 }
 
-fn update_buffer(buffer: &mut [u32], nes: &mut Nes) -> bool {
-    if let Some(screen) = nes.get_frame() {
-        screen.flatten().enumerate().for_each(|(i, pixel)| {
-            let val: u32 =
-                ((pixel.r as u32) << 16) | ((pixel.g as u32) << 8) | ((pixel.b as u32) << 0);
-            buffer[i] = val;
-        });
-        true
-    } else {
-        false
-    }
-
-    // nes.screen().flatten().enumerate().for_each(|(i, pixel)| {
-    //     let val: u32 =
-    //         ((pixel.r as u32) << 16) | ((pixel.g as u32) << 8) | ((pixel.b as u32) << 0);
-    //     buffer[i] = val;
-    // });
-    // true
+fn update_buffer(buffer: &mut [u32], screen: &Screen<256, 240>) {
+    screen.flatten().enumerate().for_each(|(i, pixel)| {
+        let val: u32 = ((pixel.r as u32) << 16) | ((pixel.g as u32) << 8) | (pixel.b as u32);
+        buffer[i] = val;
+    });
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut buffer: Vec<u32> = vec![0; SCREEN_WIDTH * SCREEN_HEIGHT];
 
     let mut window = Window::new(
-        "Test - ESC to exit",
+        "NES emulator",
         SCREEN_WIDTH,
         SCREEN_HEIGHT,
-        WindowOptions::default(),
+        WindowOptions {
+            scale: Scale::FitScreen,
+            ..WindowOptions::default()
+        },
     )
     .unwrap_or_else(|e| {
         panic!("{}", e);
     });
 
     // Limit to max ~60 fps update rate
-    // window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
+    window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
     let mut nes = game()?;
 
-    while window.is_open() && !window.is_key_down(Key::Escape) {
-        if update_buffer(&mut buffer, &mut nes) {
-            // We unwrap here as we want this code to exit if it fails. Real applications may want to handle this in a different way
-            window
-                .update_with_buffer(&buffer, SCREEN_WIDTH, SCREEN_HEIGHT)
-                .unwrap();
-        }
+    let mut time = std::time::SystemTime::now();
 
-        nes.system_clock();
+    while window.is_open() && !window.is_key_down(Key::Escape) {
+        // update_buffer(&mut buffer, nes.screen());
+        update_buffer(&mut buffer, nes.next_frame());
+
+        window.set_title(&format!(
+            "NES (FPS: {:.0})",
+            1.0 / time.elapsed().unwrap().as_secs_f64()
+        ));
+        time = std::time::SystemTime::now();
+
+        window
+            .update_with_buffer(&buffer, SCREEN_WIDTH, SCREEN_HEIGHT)
+            .unwrap();
     }
 
     Ok(())

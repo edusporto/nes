@@ -3,13 +3,14 @@
 pub mod registers;
 mod rendering;
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
 use crate::cartridge::{Cartridge, CartridgeMirror};
-use crate::ram::{AFTER_RAM_END, RAM_END};
+use crate::ram::{AFTER_RAM_END, RAM_END, RAM_START};
 use crate::screen::{pixel, Screen};
 use registers::*;
 
@@ -37,7 +38,7 @@ pub struct Ppu {
     pattern_table: [[u8; 4096]; 2],
     palette_table: [u8; 32],
 
-    cartridge: Option<Rc<Cartridge>>,
+    cartridge: Option<Rc<RefCell<Cartridge>>>,
 
     /// Non-maskable interrupt; allows the PPU to send
     /// interrupts to the CPU
@@ -105,28 +106,29 @@ impl Ppu {
         &self.screen
     }
 
-    /// Returns the NES' screen when a frame is complete
-    pub fn get_frame(&mut self) -> Option<&Screen<256, 240>> {
+    pub fn screen_ready(&mut self) -> bool {
         if self.frame_complete {
             self.frame_complete = false;
-            Some(&self.screen)
+            true
         } else {
-            None
+            false
         }
     }
 
     pub fn clock(&mut self) {
+        self.frame_complete = false;
+
         match self.scanline {
             // rendering portion
             (-1..=239) => {
-                if self.scanline == -1 && self.cycle == 1 {
-                    // start of new frame
-                    self.status.set(StatusReg::VERTICAL_BLANK, false)
-                }
-
                 if self.scanline == 0 && self.cycle == 0 {
                     // "odd frame" cycle skip
                     self.cycle = 1;
+                }
+
+                if self.scanline == -1 && self.cycle == 1 {
+                    // start of new frame
+                    self.status.set(StatusReg::VERTICAL_BLANK, false)
                 }
 
                 if (2..=257).contains(&self.cycle) || (321..=337).contains(&self.cycle) {
@@ -139,7 +141,7 @@ impl Ppu {
 
                             // fetch next background tile ID
                             self.bg.next_tile_id =
-                                self.ppu_read(0x2000 | self.vram_addr.0 & 0x0FFF);
+                                self.ppu_read(0x2000 | (self.vram_addr.0 & 0x0FFF));
                         }
                         2 => {
                             self.bg.next_tile_attrib = self.ppu_read(
@@ -183,28 +185,30 @@ impl Ppu {
                         }
                         _ => { /* do nothing */ }
                     };
+                }
 
-                    if self.cycle == 256 {
-                        self.increment_scroll_y();
-                    }
+                if self.cycle == 256 {
+                    self.increment_scroll_y();
+                }
 
-                    if self.cycle == 257 {
-                        self.load_backgrond_shifters();
-                        self.transfer_address_x();
-                    }
+                if self.cycle == 257 {
+                    self.load_backgrond_shifters();
+                    self.transfer_address_x();
+                }
 
-                    if self.cycle == 338 || self.cycle == 340 {
-                        self.bg.next_tile_id = self.ppu_read(0x2000 | (self.vram_addr.0 & 0x0FFF));
-                    }
+                if self.cycle == 338 || self.cycle == 340 {
+                    self.bg.next_tile_id = self.ppu_read(0x2000 | (self.vram_addr.0 & 0x0FFF));
+                }
 
-                    if self.scanline == -1 && (280..=304).contains(&self.cycle) {
-                        self.transfer_address_y();
-                    }
+                if self.scanline == -1 && (280..=304).contains(&self.cycle) {
+                    self.transfer_address_y();
                 }
             }
             240 => { /* do nothing! */ }
             (241..=260) => {
                 if self.scanline == 241 && self.cycle == 1 {
+                    self.status.set(StatusReg::VERTICAL_BLANK, true);
+
                     // PPU has finished drawing, send interrupt signal to the CPU.
                     // This allows the CPU to process data without interfering
                     // with the PPU's drawing
@@ -236,7 +240,7 @@ impl Ppu {
         }
 
         self.screen.set_pixel(
-            (self.cycle as usize - 1, self.scanline as usize),
+            (self.scanline as usize, (self.cycle - 1) as usize),
             self.color_from_palette(bg_palette, bg_pixel),
         );
 
@@ -252,7 +256,7 @@ impl Ppu {
         }
     }
 
-    pub fn insert_cartridge(&mut self, cartridge: Rc<Cartridge>) {
+    pub fn insert_cartridge(&mut self, cartridge: Rc<RefCell<Cartridge>>) {
         self.cartridge = Some(cartridge)
     }
 
@@ -267,7 +271,7 @@ impl Ppu {
     pub fn cpu_write(&mut self, addr: u16, data: u8) {
         use PPUReadWriteAddr::*;
 
-        let addr = addr & 0x07; // mirrors on 8 entres (3 bits)
+        let addr = addr & 0x07; // mirrors on 8 entries (3 bits)
 
         match FromPrimitive::from_u16(addr) {
             Some(ControlFlag) => {
@@ -287,13 +291,13 @@ impl Ppu {
                 0 => {
                     // write contains X offset
                     self.fine_x = data & 0x07; // mirrors on 8 entries (3 bits)
-                    self.tram_addr.set_coarse_x((data >> 3) as u16); // TODO: test
+                    self.tram_addr.set_coarse_x(data as u16 >> 3); // TODO: test
                     self.address_latch = 1;
                 }
                 _ => {
                     // write contains Y offset
                     self.tram_addr.set_fine_y((data & 0x07) as u16); // mirrors on 8 entries
-                    self.tram_addr.set_coarse_y((data >> 3) as u16); // TODO: test
+                    self.tram_addr.set_coarse_y(data as u16 >> 3); // TODO: test
                     self.address_latch = 0;
                 }
             },
@@ -302,12 +306,12 @@ impl Ppu {
                 0 => {
                     // latches high byte of address
                     self.tram_addr =
-                        RamAddrData(((data as u16 & 0x3F) << 8) | self.tram_addr.0 & 0x00FF);
+                        RamAddrData(((data as u16 & 0x3F) << 8) | (self.tram_addr.0 & 0x00FF));
                     self.address_latch = 1;
                 }
                 _ => {
                     // latches low byte of address
-                    self.tram_addr = RamAddrData((self.tram_addr.0 & 0x00FF) | data as u16);
+                    self.tram_addr = RamAddrData((self.tram_addr.0 & 0xFF00) | data as u16);
                     self.vram_addr = self.tram_addr;
                     self.address_latch = 0;
                 }
@@ -384,7 +388,11 @@ impl Ppu {
     pub fn ppu_write(&mut self, addr: u16, data: u8) {
         let addr: u16 = addr & PPU_ADDR_END;
 
-        let cart = self.cartridge.as_ref().expect("No cartridge inserted!");
+        let mut cart = self
+            .cartridge
+            .as_mut()
+            .expect("No cartridge inserted!")
+            .borrow_mut();
         let (mapped, _mapped_data) = cart.ppu_map_write(addr, data);
 
         if mapped {
@@ -417,7 +425,8 @@ impl Ppu {
                 _ => {}
             },
             (0x3F00..=0x3FFF) => {
-                let addr = match addr & 0x001F {
+                let addr = addr & 0x001F;
+                let addr = match addr {
                     0x0010 => 0x0000,
                     0x0014 => 0x0004,
                     0x0018 => 0x0008,
@@ -434,15 +443,19 @@ impl Ppu {
         let addr = addr & PPU_ADDR_END;
         let mut data: u8 = 0;
 
-        let cart = self.cartridge.as_ref().expect("No cartridge inserted!");
-        let (mapped, _mapped_data) = cart.ppu_map_write(addr, data);
+        let cart = self
+            .cartridge
+            .as_ref()
+            .expect("No cartridge inserted!")
+            .borrow();
+        let (mapped, mapped_data) = cart.ppu_map_read(addr);
 
         if mapped {
-            return data;
+            return mapped_data;
         }
 
         match addr {
-            (0..=RAM_END) => {
+            (RAM_START..=RAM_END) => {
                 data = self.pattern_table[(addr as usize & 0x1000) >> 12][addr as usize & 0x0FFF];
             }
             (AFTER_RAM_END..=0x3EFF) => match cart.mirror {

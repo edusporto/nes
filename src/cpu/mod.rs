@@ -182,16 +182,16 @@ impl Cpu {
     /// The PC will be set to the value pointed by the
     /// 16-bit pointer found at 0xFFFC
     pub fn reset(&mut self) {
+        self.addr_abs = 0xFFFC;
+        let low = self.read(self.addr_abs) as u16;
+        let high = self.read(self.addr_abs + 1) as u16;
+        self.pc = high << 8 | low;
+
         self.a = 0;
         self.x = 0;
         self.y = 0;
         self.stkp = 0xFD;
         self.status = CpuFlags::empty() | CpuFlags::U;
-
-        self.addr_abs = 0xFFFC;
-        let low = self.read(self.addr_abs) as u16;
-        let high = self.read(self.addr_abs + 1) as u16;
-        self.pc = high << 8 | low;
 
         self.addr_abs = 0;
         self.addr_rel = 0;
@@ -287,11 +287,12 @@ impl Cpu {
 
         // Read opcode from address at the Program Counter
         let opcode = self.read_inc_pc();
+        self.opcode = opcode;
+
+        let ins = Instruction::lookup(opcode);
 
         // Must be always set to true
         self.status.set(CpuFlags::U, true);
-
-        let ins = Instruction::lookup(opcode);
 
         // Each instructions needs a different amount of
         // clock cycles.
@@ -350,5 +351,7 @@ fn test_fn_equality() {
         Cpu::rel,
     ];
 
-    addr_modes.iter().for_each(|&mode| assert_ne!(mode as usize, Cpu::imp as usize));
+    addr_modes
+        .iter()
+        .for_each(|&mode| assert_ne!(mode as usize, Cpu::imp as usize));
 }

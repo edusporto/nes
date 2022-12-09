@@ -144,35 +144,41 @@ impl Cartridge {
         })
     }
 
-    pub fn cpu_map_read(&self, addr: u16, data: u8) -> (bool, u8) {
+    pub fn cpu_map_read(&self, addr: u16) -> (bool, u8) {
         let (mapped, mapped_addr) = self.mapper.cpu_map_read(addr);
         match mapped {
             true => (true, self.program_memory[mapped_addr as usize]),
-            false => (false, data),
+            false => (false, 0),
         }
     }
 
-    pub fn cpu_map_write(&self, addr: u16, data: u8) -> (bool, u8) {
-        let (mapped, mapped_addr) = self.mapper.cpu_map_write(addr);
+    pub fn cpu_map_write(&mut self, addr: u16, data: u8) -> (bool, u8) {
+        let (mapped, mapped_addr) = self.mapper.cpu_map_write(addr, data);
         match mapped {
-            true => (true, self.program_memory[mapped_addr as usize]),
-            false => (false, data),
+            true => {
+                self.program_memory[mapped_addr as usize] = data;
+                (true, self.program_memory[mapped_addr as usize])
+            }
+            false => (false, 0),
         }
     }
 
-    pub fn ppu_map_read(&self, addr: u16, data: u8) -> (bool, u8) {
+    pub fn ppu_map_read(&self, addr: u16) -> (bool, u8) {
         let (mapped, mapped_addr) = self.mapper.ppu_map_read(addr);
         match mapped {
             true => (true, self.character_memory[mapped_addr as usize]),
-            false => (false, data),
+            false => (false, 0),
         }
     }
 
-    pub fn ppu_map_write(&self, addr: u16, data: u8) -> (bool, u8) {
+    pub fn ppu_map_write(&mut self, addr: u16, data: u8) -> (bool, u8) {
         let (mapped, mapped_addr) = self.mapper.ppu_map_write(addr);
         match mapped {
-            true => (true, self.character_memory[mapped_addr as usize]),
-            false => (false, data),
+            true => {
+                self.character_memory[mapped_addr as usize] = data;
+                (true, self.character_memory[mapped_addr as usize])
+            }
+            false => (false, 0),
         }
     }
 }

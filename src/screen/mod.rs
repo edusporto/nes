@@ -4,6 +4,8 @@
 
 pub mod pixel;
 
+use itertools::Itertools;
+
 use pixel::*;
 
 #[derive(Debug, Clone)]
@@ -19,7 +21,9 @@ impl<const WIDTH: usize, const HEIGHT: usize> Screen<WIDTH, HEIGHT> {
     }
 
     pub fn enumerate(&self) -> impl Iterator<Item = ((usize, usize), &Pixel)> {
-        (0..WIDTH).zip(0..HEIGHT).zip(self.pixels.iter().flatten())
+        (0..WIDTH)
+            .cartesian_product(0..HEIGHT)
+            .zip(self.pixels.iter().flatten())
     }
 
     pub fn flatten(&self) -> impl Iterator<Item = &Pixel> {

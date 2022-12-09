@@ -35,7 +35,7 @@ impl super::Ppu {
             || self.mask.contains(MaskReg::RENDER_SPRITES)
         {
             if self.vram_addr.fine_y() < 7 {
-                self.vram_addr.set_fine_y(self.vram_addr.fine_y());
+                self.vram_addr.set_fine_y(self.vram_addr.fine_y() + 1);
                 return;
             }
 

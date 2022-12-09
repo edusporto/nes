@@ -25,7 +25,7 @@ impl Cpu {
         // Needs an additional clock cycle.
         self.cycles += 1;
 
-        self.addr_abs = self.pc + self.addr_rel;
+        self.addr_abs = self.pc.wrapping_add(self.addr_rel);
 
         if self.addr_abs & 0xFF00 != self.pc & 0xFF00 {
             // If the page changes, another additional cycle
