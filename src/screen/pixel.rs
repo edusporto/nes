@@ -13,7 +13,7 @@ impl Pixel {
     }
 }
 
-pub static ALL_COLORS: [Pixel; 64] = [
+pub const ALL_COLORS: [Pixel; 64] = [
     Pixel::new(84, 84, 84),
     Pixel::new(0, 30, 116),
     Pixel::new(8, 16, 144),
