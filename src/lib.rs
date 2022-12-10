@@ -1,10 +1,13 @@
 pub mod bus;
 pub mod cartridge;
+pub mod controller;
 pub mod cpu;
 pub mod mapper;
 pub mod ppu;
 pub mod ram;
 pub mod screen;
+
+use controller::Controller;
 
 use crate::cartridge::Cartridge;
 use crate::cpu::Cpu;
@@ -40,6 +43,14 @@ impl Nes {
         }
 
         self.screen()
+    }
+
+    pub fn controllers(&self) -> &[Controller; 2] {
+        &self.cpu.bus.controllers
+    }
+
+    pub fn mut_controllers(&mut self) -> &mut [Controller; 2] {
+        &mut self.cpu.bus.controllers
     }
 
     pub fn system_clock(&mut self) {

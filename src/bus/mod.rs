@@ -4,6 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::cartridge::Cartridge;
+use crate::controller::{Controller, CTRL_ADDR_END, CTRL_ADDR_START};
 use crate::ppu::{Ppu, PPU_ADDR_END, PPU_ADDR_START};
 use crate::ram::{Ram, RAM_END, RAM_MIRROR, RAM_START};
 
@@ -15,6 +16,9 @@ pub struct Bus {
     /// Random Access Memory, 2 kb size with mirrorring up to 8 kb
     pub ram: Ram,
 
+    pub controllers: [Controller; 2],
+    controller_state: [Controller; 2],
+
     cartridge: Option<Rc<RefCell<Cartridge>>>,
 }
 
@@ -23,6 +27,9 @@ impl Bus {
         Bus {
             ppu: Ppu::new(),
             ram: Ram::default(),
+
+            controllers: [Controller::empty(); 2],
+            controller_state: [Controller::empty(); 2],
 
             cartridge: None,
         }
@@ -64,8 +71,11 @@ impl Bus {
                 // mirrors `addr` into 8 entries
                 self.ppu.cpu_write(addr & 0x07, data)
             }
-            _ => {}
-            // _ => panic!("invalid address used to write to RAM: {:#4X}", addr), // TODO: should panic? 
+            CTRL_ADDR_START..=CTRL_ADDR_END => {
+                let which = addr as usize & 0x1;
+                self.controller_state[which] = self.controllers[which];
+            }
+            _ => {} // _ => panic!("invalid address used to write to RAM: {:#4X}", addr), // TODO: should panic?
         }
     }
 
@@ -90,6 +100,13 @@ impl Bus {
                 // `Bus::read` is mutable because of this part
                 // & 0x07 mirrors into 8 entries:
                 self.ppu.cpu_read(addr & 0x07)
+            }
+            CTRL_ADDR_START..=CTRL_ADDR_END => {
+                let which = addr as usize & 0x1;
+                let data = u8::from(self.controller_state[which].bits() & 0x80 > 0);
+                self.controller_state[which] =
+                    Controller::from_bits_truncate(self.controller_state[which].bits() << 1);
+                data
             }
             // TODO: find out if this should panic or not
             _ => 0,
