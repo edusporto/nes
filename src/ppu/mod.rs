@@ -1,6 +1,7 @@
 //! Module for the Picture Processing Unit.
 
-pub mod registers;
+mod oam;
+mod registers;
 mod rendering;
 
 use std::cell::RefCell;
@@ -12,6 +13,7 @@ use num_traits::FromPrimitive;
 use crate::cartridge::{Cartridge, CartridgeMirror};
 use crate::ram::{AFTER_RAM_END, RAM_END, RAM_START};
 use crate::screen::{pixel, Screen};
+use oam::*;
 use registers::*;
 
 pub const PPU_ADDR_START: u16 = 0x2000;
@@ -46,6 +48,9 @@ pub struct Ppu {
     cycle: i16,
     scanline: i16,
 
+    oam: Oam,
+    oam_addr: u8,
+
     status: registers::StatusReg,
     mask: registers::MaskReg,
     control: registers::ControlReg,
@@ -77,6 +82,8 @@ impl Ppu {
             nmi: false,
             cycle: 0,
             scanline: 0,
+            oam: Oam::default(),
+            oam_addr: 0,
             status: StatusReg::empty(),
             mask: MaskReg::empty(),
             control: ControlReg::empty(),
@@ -285,8 +292,12 @@ impl Ppu {
                 self.mask = MaskReg::from_bits_truncate(data);
             }
             Some(StatusFlag) => {}
-            Some(OAMAddressFlag) => {}
-            Some(OAMDataFlag) => {}
+            Some(OAMAddressFlag) => {
+                self.oam_addr = data;
+            }
+            Some(OAMDataFlag) => {
+                self.oam.set_byte(self.oam_addr, data);
+            }
             Some(ScrollFlag) => match self.address_latch {
                 0 => {
                     // write contains X offset
@@ -354,7 +365,9 @@ impl Ppu {
                 self.address_latch = 0;
             }
             Some(OAMAddressFlag) => {}
-            Some(OAMDataFlag) => {}
+            Some(OAMDataFlag) => {
+                data = self.oam.get_byte(self.oam_addr);
+            }
             Some(ScrollFlag) => {}
             Some(PPUAddressFlag) => {}
             Some(PPUDataFlag) => {
