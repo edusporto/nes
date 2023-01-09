@@ -11,6 +11,7 @@ use crate::mapper::Mapper;
 #[derive(Debug)]
 pub struct Cartridge {
     pub mirror: CartridgeMirror,
+    pub header: CartridgeHeader,
 
     program_memory: Vec<u8>,
     character_memory: Vec<u8>,
@@ -33,7 +34,7 @@ pub enum CartridgeMirror {
 
 /// Format header for iNES
 #[derive(BinRead, Debug, Clone, Copy)]
-struct CartridgeHeader {
+pub struct CartridgeHeader {
     name: [u8; 4],
     program_rom_chunks: u8,
     character_rom_chunks: u8,
@@ -140,6 +141,7 @@ impl Cartridge {
             character_banks,
 
             mirror,
+            header,
             mapper,
         })
     }
@@ -180,5 +182,11 @@ impl Cartridge {
             }
             false => (false, 0),
         }
+    }
+}
+
+impl std::fmt::Display for Cartridge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", String::from_utf8_lossy(&self.header.name))
     }
 }

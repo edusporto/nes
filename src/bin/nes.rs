@@ -52,7 +52,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         SCREEN_WIDTH,
         SCREEN_HEIGHT,
         WindowOptions {
-            scale: Scale::FitScreen,
+            scale: Scale::X4,
             ..WindowOptions::default()
         },
     )
@@ -74,7 +74,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         fps_avg.add(fps);
         time = std::time::SystemTime::now();
 
-        window.set_title(&format!("NES (FPS: {:.0})", fps_avg.avg()));
+        window.set_title(&format!("NES (FPS: {:.1})", fps_avg.avg()));
 
         window
             .update_with_buffer(&buffer, SCREEN_WIDTH, SCREEN_HEIGHT)

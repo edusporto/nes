@@ -19,7 +19,7 @@ pub struct Bus {
     pub controllers: [Controller; 2],
     controller_state: [Controller; 2],
 
-    cartridge: Option<Rc<RefCell<Cartridge>>>,
+    pub(crate) cartridge: Option<Rc<RefCell<Cartridge>>>,
 }
 
 impl Bus {

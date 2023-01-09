@@ -61,3 +61,15 @@ impl Nes {
         self.cpu.system_reset();
     }
 }
+
+impl std::fmt::Display for Nes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.cpu.bus.cartridge {
+            Some(cart) => match cart.try_borrow() {
+                Ok(cart) => write!(f, "NES online with cartridge \"{}\"", cart),
+                Err(_) => write!(f, "NES online, cartridge being used"),
+            },
+            None => write!(f, "NES offline with no cartridge"),
+        }
+    }
+}
