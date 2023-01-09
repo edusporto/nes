@@ -11,8 +11,8 @@ use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
 use crate::cartridge::{Cartridge, CartridgeMirror};
-use crate::ram::{AFTER_RAM_END, RAM_END, RAM_START};
 use crate::screen::{pixel, Screen};
+use crate::system::ram::{AFTER_RAM_END, RAM_END, RAM_START};
 use oam::*;
 use registers::*;
 

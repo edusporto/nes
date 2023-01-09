@@ -5,8 +5,8 @@ use std::rc::Rc;
 
 use crate::cartridge::Cartridge;
 use crate::controller::{Controller, CTRL_ADDR_END, CTRL_ADDR_START};
-use crate::ppu::{Ppu, PPU_ADDR_END, PPU_ADDR_START};
-use crate::ram::{Ram, RAM_END, RAM_MIRROR, RAM_START};
+use crate::system::ppu::{Ppu, PPU_ADDR_END, PPU_ADDR_START};
+use crate::system::ram::{Ram, RAM_END, RAM_MIRROR, RAM_START};
 
 /// Contains the possible devices connected to the CPU.
 #[derive(Clone, Debug)]

@@ -3,8 +3,8 @@
 //! If you are a user of this library, feel free to
 //! add more mappers.
 
-use crate::mapper::Mapper;
-use crate::ram::RAM_END;
+use crate::system::mapper::Mapper;
+use crate::system::ram::RAM_END;
 
 #[derive(Debug)]
 pub struct Mapper0 {

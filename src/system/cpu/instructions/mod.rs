@@ -1,10 +1,8 @@
 pub mod definitions;
 mod implementations;
 
-use crate::cpu::Cpu;
-
-#[allow(unused_imports)]
-use crate::cpu::instructions::definitions::*;
+use super::Cpu;
+use definitions::LOOKUP_TABLE;
 
 #[derive(Clone, Copy)]
 pub struct Instruction {

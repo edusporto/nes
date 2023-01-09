@@ -16,8 +16,7 @@
 // Thanks to javidx9 (https://github.com/OneLoneCoder)
 // for providing the lookup table!
 
-use crate::cpu::instructions::Instruction;
-use crate::cpu::Cpu;
+use crate::system::cpu::{Cpu, Instruction};
 
 /// Builds a constant of type Instruction for each instruction and
 /// defines the instructions' lookup table.
@@ -52,8 +51,7 @@ macro_rules! make_instructions {
         $(
             #[doc = concat!(
                 "```rust,ignore\n",
-                "use nes::cpu::instructions::Instruction;\n",
-                "use nes::cpu::Cpu;\n",
+                "use crate::system::cpu::{Cpu, Instruction};\n",
                 "pub const ", stringify!($name), ": Instruction = Instruction {\n",
                 "    name: \"", stringify!($name), "\",\n",
                 "    opcode: ", stringify!($opcode), ",\n",

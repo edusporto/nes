@@ -1,6 +1,6 @@
 //! Addressing modes for the 6502 CPU.
 
-use crate::cpu::Cpu;
+use super::Cpu;
 
 impl Cpu {
     /// Implied addressing

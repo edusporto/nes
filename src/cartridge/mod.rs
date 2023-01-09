@@ -6,8 +6,7 @@ use std::io::{self, Read, Seek, SeekFrom};
 use binread::{BinRead, BinReaderExt};
 use thiserror::Error;
 
-use crate::mapper::mappers;
-use crate::mapper::Mapper;
+use crate::system::mapper::{mappers, Mapper};
 
 #[derive(Debug)]
 pub struct Cartridge {

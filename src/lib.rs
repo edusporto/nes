@@ -1,75 +1,56 @@
-pub mod bus;
 pub mod cartridge;
 pub mod controller;
-pub mod cpu;
-pub mod mapper;
-pub mod ppu;
-pub mod ram;
 pub mod screen;
 
-use controller::Controller;
+pub(crate) mod system;
 
 use crate::cartridge::Cartridge;
-use crate::cpu::Cpu;
+use crate::controller::Controller;
 use crate::screen::Screen;
+use system::System;
 
 pub const SCREEN_WIDTH: usize = 256;
 pub const SCREEN_HEIGHT: usize = 240;
 
 #[derive(Clone, Debug, Default)]
 pub struct Nes {
-    cpu: Cpu,
+    system: System,
 }
 
 impl Nes {
     pub fn new(cartridge: Cartridge) -> Self {
-        let mut nes = Self { cpu: Cpu::new() };
-        nes.cpu.bus.insert_cartridge(cartridge);
-        nes.cpu.system_reset();
-        nes
-    }
-
-    pub fn insert_cartridge(&mut self, cartridge: Cartridge) {
-        self.cpu.bus.insert_cartridge(cartridge);
+        Nes {
+            system: System::new(cartridge),
+        }
     }
 
     pub fn screen(&self) -> &Screen<256, 240> {
-        self.cpu.bus.ppu.screen()
+        self.system.screen()
     }
 
     pub fn next_frame(&mut self) -> &Screen<256, 240> {
-        while !self.cpu.bus.ppu.screen_ready() {
-            self.system_clock();
-        }
-
-        self.screen()
+        self.system.next_frame()
     }
 
     pub fn controllers(&self) -> &[Controller; 2] {
-        &self.cpu.bus.controllers
+        &self.system.controllers()
     }
 
     pub fn mut_controllers(&mut self) -> &mut [Controller; 2] {
-        &mut self.cpu.bus.controllers
+        self.system.mut_controllers()
     }
 
     pub fn system_clock(&mut self) {
-        self.cpu.system_clock();
+        self.system.clock();
     }
 
     pub fn system_reset(&mut self) {
-        self.cpu.system_reset();
+        self.system.reset();
     }
 }
 
 impl std::fmt::Display for Nes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.cpu.bus.cartridge {
-            Some(cart) => match cart.try_borrow() {
-                Ok(cart) => write!(f, "NES online with cartridge \"{}\"", cart),
-                Err(_) => write!(f, "NES online, cartridge being used"),
-            },
-            None => write!(f, "NES offline with no cartridge"),
-        }
+        write!(f, "{}", self.system)
     }
 }

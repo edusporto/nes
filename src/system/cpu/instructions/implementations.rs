@@ -1,8 +1,5 @@
 ///! Instruction implementations.
-use crate::cpu::flags::CpuFlags;
-use crate::cpu::{Cpu, STACK_BASE};
-
-use super::Instruction;
+use crate::system::cpu::{flags::CpuFlags, Cpu, Instruction, STACK_BASE};
 
 impl Cpu {
     /// Helper function. Sets the Z flag if the accumulator

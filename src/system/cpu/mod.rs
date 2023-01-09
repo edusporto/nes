@@ -31,7 +31,7 @@ mod addressing;
 mod flags;
 mod instructions;
 
-use crate::bus::Bus;
+use crate::system::bus::Bus;
 use flags::CpuFlags;
 use instructions::Instruction;
 
@@ -87,10 +87,6 @@ struct CpuData {
     /// The relative memory address is used by
     /// branching instructions.
     addr_rel: u16,
-
-    /// Used by the `self.system_clock` function
-    /// to have the PPU clock faster than the CPU.
-    clock_counter: u32,
 }
 
 impl Cpu {
@@ -111,38 +107,8 @@ impl Cpu {
                 fetched: 0,
                 addr_abs: 0,
                 addr_rel: 0,
-                clock_counter: 0,
             },
         }
-    }
-
-    /// **System clock cycle**
-    ///
-    /// Executes a clock cycle for all parts of the console,
-    /// namely, the CPU and PPU.
-    pub fn system_clock(&mut self) {
-        self.bus.ppu.clock();
-
-        if self.data.clock_counter % 3 == 0 {
-            self.clock();
-        }
-
-        if self.bus.ppu.interrupt_sent() {
-            self.bus.ppu.interrupt_done();
-            self.nmi();
-        }
-
-        // TODO: Test if wrapping_add breaks anything
-        self.data.clock_counter = self.data.clock_counter.wrapping_add(1);
-    }
-
-    /// **System reset**
-    ///
-    /// Resets the CPU and the PPU.
-    pub fn system_reset(&mut self) {
-        self.reset();
-        self.bus.reset();
-        self.data.clock_counter = 0;
     }
 
     /// Write `data` to memory at address `addr`
@@ -159,6 +125,7 @@ impl Cpu {
     }
 
     /// Reads from the address at the Program Counter
+    #[allow(dead_code)]
     pub fn read_from_pc(&mut self) -> u8 {
         self.read(self.pc)
     }
@@ -218,6 +185,7 @@ impl Cpu {
     ///
     /// The PC will be set to the value pointed by the
     /// 16-bit pointer found at 0xFFFE
+    #[allow(dead_code)]
     pub fn irq(&mut self) {
         if self.status.contains(CpuFlags::I) {
             return;
