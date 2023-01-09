@@ -25,18 +25,20 @@ pub const RAM_MIRROR: u16 = 0x07FF;
 /// Random Access Memory
 #[derive(Clone, Debug)]
 pub struct Ram {
-    mem: Vec<u8>,
+    mem: [u8; RAM_SIZE],
 }
 
 impl Ram {
-    pub fn new(size: usize) -> Ram {
-        Ram { mem: vec![0; size] }
+    pub fn new() -> Ram {
+        Ram { mem: [0; RAM_SIZE] }
     }
 
+    #[allow(dead_code)]
     pub fn write(&mut self, addr: u16, data: u8) {
         self.mem[addr as usize] = data
     }
 
+    #[allow(dead_code)]
     pub fn read(&self, addr: u16) -> u8 {
         self.mem[addr as usize]
     }
@@ -62,8 +64,6 @@ impl Ram {
 
 impl Default for Ram {
     fn default() -> Self {
-        Self {
-            mem: vec![0; RAM_SIZE],
-        }
+        Ram::new()
     }
 }
