@@ -23,17 +23,17 @@ impl Cpu {
     /// All branch instructions need from 1 to 2 additional cycles.
     fn branch(&mut self) {
         // Needs an additional clock cycle.
-        self.cycles += 1;
+        self.data.cycles += 1;
 
-        self.addr_abs = self.pc.wrapping_add(self.addr_rel);
+        self.data.addr_abs = self.pc.wrapping_add(self.data.addr_rel);
 
-        if self.addr_abs & 0xFF00 != self.pc & 0xFF00 {
+        if self.data.addr_abs & 0xFF00 != self.pc & 0xFF00 {
             // If the page changes, another additional cycle
             // will be needed.
-            self.cycles += 1;
+            self.data.cycles += 1;
         }
 
-        self.pc = self.addr_abs;
+        self.pc = self.data.addr_abs;
     }
 
     /// Add memory to Accumulator with Carry
@@ -77,7 +77,7 @@ impl Cpu {
         // Impossible for addition below to overflow on our machine
         // since the result is `u16`, we will later check if the addition
         // overflowed considering only the lower 8 bits
-        let addition = self.a as u16 + self.fetched as u16 + c as u16;
+        let addition = self.a as u16 + self.data.fetched as u16 + c as u16;
 
         // If the result is over 0xFF, a carry bit is needed
         self.status.set(CpuFlags::C, addition > 0xFF);
@@ -97,7 +97,7 @@ impl Cpu {
         // positive, an overflow happened.
         // * Otherwise, no overflow happened.
         let acc_pos = self.a & 0x80 == 0;
-        let mem_pos = self.fetched & 0x80 == 0;
+        let mem_pos = self.data.fetched & 0x80 == 0;
         let res_pos = addition & 0x80 == 0;
         let overflow = (acc_pos && mem_pos && !res_pos) || (!acc_pos && !mem_pos && res_pos);
         self.status.set(CpuFlags::V, overflow);
@@ -119,7 +119,7 @@ impl Cpu {
     pub fn and(&mut self) -> u8 {
         self.fetch();
 
-        self.a &= self.fetched;
+        self.a &= self.data.fetched;
 
         self.set_zero();
         self.set_negative();
@@ -136,7 +136,7 @@ impl Cpu {
     pub fn asl(&mut self) -> u8 {
         self.fetch();
 
-        let result = (self.fetched as u16) << 1;
+        let result = (self.data.fetched as u16) << 1;
 
         // if the 16-bit result is over 255, a carry bit is needed
         self.status.set(CpuFlags::C, result > 255);
@@ -146,11 +146,11 @@ impl Cpu {
 
         // if the addresing mode is implied, write to the Accumulator
         // otherwise, write to the memory
-        let addrmode = Instruction::lookup(self.opcode).addrmode;
+        let addrmode = Instruction::lookup(self.data.opcode).addrmode;
         if addrmode as usize == Cpu::imp as usize {
             self.a = (result & 0xFF) as u8;
         } else {
-            self.write(self.addr_abs, (result & 0xFF) as u8);
+            self.write(self.data.addr_abs, (result & 0xFF) as u8);
         }
 
         0
@@ -194,11 +194,13 @@ impl Cpu {
     pub fn bit(&mut self) -> u8 {
         self.fetch();
 
-        let result = self.a & self.fetched;
+        let result = self.a & self.data.fetched;
         // 0xFF to keep consistency
         self.status.set(CpuFlags::Z, result & 0xFF == 0);
-        self.status.set(CpuFlags::N, self.fetched & (1 << 7) != 0);
-        self.status.set(CpuFlags::V, self.fetched & (1 << 6) != 0);
+        self.status
+            .set(CpuFlags::N, self.data.fetched & (1 << 7) != 0);
+        self.status
+            .set(CpuFlags::V, self.data.fetched & (1 << 6) != 0);
 
         0
     }
@@ -326,9 +328,9 @@ impl Cpu {
         self.fetch();
 
         // TODO: may be a source of bug
-        let result = (self.a as u16).wrapping_sub(self.fetched as u16);
+        let result = (self.a as u16).wrapping_sub(self.data.fetched as u16);
 
-        self.status.set(CpuFlags::C, self.a >= self.fetched);
+        self.status.set(CpuFlags::C, self.a >= self.data.fetched);
         self.status.set(CpuFlags::Z, result & 0xFF == 0);
         self.status.set(CpuFlags::N, result & 0x80 != 0);
 
@@ -346,9 +348,9 @@ impl Cpu {
     pub fn cpx(&mut self) -> u8 {
         self.fetch();
 
-        let result = (self.x as u16).wrapping_sub(self.fetched as u16);
+        let result = (self.x as u16).wrapping_sub(self.data.fetched as u16);
 
-        self.status.set(CpuFlags::C, self.x >= self.fetched);
+        self.status.set(CpuFlags::C, self.x >= self.data.fetched);
         self.status.set(CpuFlags::Z, result & 0xFF == 0);
         self.status.set(CpuFlags::N, result & 0x80 != 0);
 
@@ -366,9 +368,9 @@ impl Cpu {
     pub fn cpy(&mut self) -> u8 {
         self.fetch();
 
-        let result = (self.y as u16).wrapping_sub(self.fetched as u16);
+        let result = (self.y as u16).wrapping_sub(self.data.fetched as u16);
 
-        self.status.set(CpuFlags::C, self.y >= self.fetched);
+        self.status.set(CpuFlags::C, self.y >= self.data.fetched);
         self.status.set(CpuFlags::Z, result & 0xFF == 0);
         self.status.set(CpuFlags::N, result & 0x80 != 0);
 
@@ -383,9 +385,9 @@ impl Cpu {
     pub fn dec(&mut self) -> u8 {
         self.fetch();
 
-        let new = self.fetched.wrapping_sub(1);
+        let new = self.data.fetched.wrapping_sub(1);
 
-        self.write(self.addr_abs, new);
+        self.write(self.data.addr_abs, new);
         self.status.set(CpuFlags::N, new & 0x80 != 0);
         self.status.set(CpuFlags::Z, new & 0xFF == 0);
 
@@ -426,7 +428,7 @@ impl Cpu {
     pub fn eor(&mut self) -> u8 {
         self.fetch();
 
-        let new = self.a ^ self.fetched;
+        let new = self.a ^ self.data.fetched;
 
         self.a = new;
         self.set_negative();
@@ -443,9 +445,9 @@ impl Cpu {
     pub fn inc(&mut self) -> u8 {
         self.fetch();
 
-        let new = self.fetched.wrapping_add(1);
+        let new = self.data.fetched.wrapping_add(1);
 
-        self.write(self.addr_abs, new);
+        self.write(self.data.addr_abs, new);
         self.status.set(CpuFlags::N, new & 0x80 != 0);
         self.status.set(CpuFlags::Z, new & 0xFF == 0);
 
@@ -480,7 +482,7 @@ impl Cpu {
     ///
     /// Changes the PC to the value in memory.
     pub fn jmp(&mut self) -> u8 {
-        self.pc = self.addr_abs;
+        self.pc = self.data.addr_abs;
         0
     }
 
@@ -498,7 +500,7 @@ impl Cpu {
         self.write(STACK_BASE + self.stkp as u16, (self.pc & 0xFF) as u8);
         self.stkp -= 1;
 
-        self.pc = self.addr_abs;
+        self.pc = self.data.addr_abs;
         0
     }
 
@@ -512,7 +514,7 @@ impl Cpu {
     pub fn lda(&mut self) -> u8 {
         self.fetch();
 
-        self.a = self.fetched;
+        self.a = self.data.fetched;
         self.set_negative();
         self.set_zero();
 
@@ -527,7 +529,7 @@ impl Cpu {
     pub fn ldx(&mut self) -> u8 {
         self.fetch();
 
-        self.x = self.fetched;
+        self.x = self.data.fetched;
         self.status.set(CpuFlags::N, self.x & 0x80 != 0);
         self.status.set(CpuFlags::Z, self.x == 0);
 
@@ -542,7 +544,7 @@ impl Cpu {
     pub fn ldy(&mut self) -> u8 {
         self.fetch();
 
-        self.y = self.fetched;
+        self.y = self.data.fetched;
         self.status.set(CpuFlags::N, self.y & 0x80 != 0);
         self.status.set(CpuFlags::Z, self.y == 0);
 
@@ -558,21 +560,21 @@ impl Cpu {
     pub fn lsr(&mut self) -> u8 {
         self.fetch();
 
-        let result = (self.fetched as u16) >> 1;
+        let result = (self.data.fetched as u16) >> 1;
 
         // if the lowest bit was lost, set the Carry flag
-        self.status.set(CpuFlags::C, self.fetched & 0x01 != 0);
+        self.status.set(CpuFlags::C, self.data.fetched & 0x01 != 0);
         // cant use functions self.set_negative() and self.set_zero()
         self.status.set(CpuFlags::N, result & 0x80 != 0);
         self.status.set(CpuFlags::Z, result & 0xFF == 0);
 
         // if the addresing mode is implied, write to the Accumulator
         // otherwise, write to the memory
-        let addrmode = Instruction::lookup(self.opcode).addrmode;
+        let addrmode = Instruction::lookup(self.data.opcode).addrmode;
         if addrmode as usize == Cpu::imp as usize {
             self.a = (result & 0xFF) as u8;
         } else {
-            self.write(self.addr_abs, (result & 0xFF) as u8);
+            self.write(self.data.addr_abs, (result & 0xFF) as u8);
         }
 
         0
@@ -589,7 +591,7 @@ impl Cpu {
     /// Some of the illegal opcodes represent NOP instructions. They
     /// may require additional cycles.
     pub fn nop(&mut self) -> u8 {
-        match self.opcode {
+        match self.data.opcode {
             // may need additional cycles
             0x1C => 1,
             0x3C => 1,
@@ -612,7 +614,7 @@ impl Cpu {
     pub fn ora(&mut self) -> u8 {
         self.fetch();
 
-        self.a |= self.fetched;
+        self.a |= self.data.fetched;
         self.set_negative();
         self.set_zero();
 
@@ -685,17 +687,17 @@ impl Cpu {
         self.fetch();
 
         let carry = u16::from(self.status.contains(CpuFlags::C));
-        let result = ((self.fetched as u16) << 1) | carry;
+        let result = ((self.data.fetched as u16) << 1) | carry;
 
         self.status.set(CpuFlags::C, result > 0xFF);
         self.status.set(CpuFlags::N, result & 0x80 != 0);
         self.status.set(CpuFlags::Z, result & 0xFF == 0);
 
-        let addrmode = Instruction::lookup(self.opcode).addrmode;
+        let addrmode = Instruction::lookup(self.data.opcode).addrmode;
         if addrmode as usize == Cpu::imp as usize {
             self.a = (result & 0xFF) as u8;
         } else {
-            self.write(self.addr_abs, (result & 0xFF) as u8);
+            self.write(self.data.addr_abs, (result & 0xFF) as u8);
         }
 
         0
@@ -712,18 +714,18 @@ impl Cpu {
 
         // if C is set, carry = 0b10000000
         let carry = (u16::from(self.status.contains(CpuFlags::C))) << 7;
-        let result = carry | ((self.fetched as u16) >> 1);
+        let result = carry | ((self.data.fetched as u16) >> 1);
 
         // bit 0 of the original value is 1
-        self.status.set(CpuFlags::C, self.fetched & 0x01 != 0);
+        self.status.set(CpuFlags::C, self.data.fetched & 0x01 != 0);
         self.status.set(CpuFlags::N, result & 0x80 != 0);
         self.status.set(CpuFlags::Z, result & 0xFF == 0);
 
-        let addrmode = Instruction::lookup(self.opcode).addrmode;
+        let addrmode = Instruction::lookup(self.data.opcode).addrmode;
         if addrmode as usize == Cpu::imp as usize {
             self.a = (result & 0xFF) as u8;
         } else {
-            self.write(self.addr_abs, (result & 0xFF) as u8);
+            self.write(self.data.addr_abs, (result & 0xFF) as u8);
         }
 
         0
@@ -782,7 +784,7 @@ impl Cpu {
         self.fetch();
 
         // Changes the value of self.fetched to reflect the discussion above
-        let fetched_not = !self.fetched;
+        let fetched_not = !self.data.fetched;
 
         // 0 or 1
         let c = u8::from(self.status.contains(CpuFlags::C));
@@ -847,7 +849,7 @@ impl Cpu {
     ///
     /// M := A
     pub fn sta(&mut self) -> u8 {
-        self.write(self.addr_abs, self.a);
+        self.write(self.data.addr_abs, self.a);
         0
     }
 
@@ -855,7 +857,7 @@ impl Cpu {
     ///
     /// M := X
     pub fn stx(&mut self) -> u8 {
-        self.write(self.addr_abs, self.x);
+        self.write(self.data.addr_abs, self.x);
         0
     }
 
@@ -863,7 +865,7 @@ impl Cpu {
     ///
     /// M := Y
     pub fn sty(&mut self) -> u8 {
-        self.write(self.addr_abs, self.y);
+        self.write(self.data.addr_abs, self.y);
         0
     }
 

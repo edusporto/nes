@@ -6,12 +6,9 @@
 //! * Read/Write flag
 //! * Clock
 //!
-//! The CPU will be connected to a Bus by the address lines
-//! and data lines. More devices will be connected to the Bus,
-//! such as the Picture Processing Unit.
-//!
-//! For now, the only other device connected to the CPU will
-//! be the RAM.
+//! The CPU is connected to a Bus by the address and data
+//! lines. Other devices are connected to the Bus, such as
+//! the Picture Processing Unit.
 //!
 //! Our CPU has three registers:
 //! * A: Accumulator (8-bit)
@@ -22,8 +19,8 @@
 //! * STATUS: Status flags (8-bit)
 //!
 //! The instructions performed by the CPU can have different
-//! sizes: they can be 1 byte, 2 bytes or 3 bytes. This means
-//! that some instructions will be executed in several clocks.
+//! sizes: they can be 1 byte, 2 bytes or 3 bytes. Some instructions
+//! might take multiple clock cycles to execute.
 //!
 //! With each instruction, we will have to deal with
 //! * Function
@@ -32,7 +29,7 @@
 
 mod addressing;
 mod flags;
-pub mod instructions;
+mod instructions;
 
 use crate::bus::Bus;
 use flags::CpuFlags;
@@ -44,21 +41,26 @@ pub const STACK_BASE: u16 = 0x0100;
 /// Defines a CPU and its registers
 #[derive(Clone, Debug)]
 pub struct Cpu {
-    pub bus: Bus,
+    pub(crate) bus: Bus,
 
     /// Accumulator register
-    pub a: u8,
+    pub(crate) a: u8,
     /// X register
-    pub x: u8,
+    pub(crate) x: u8,
     /// Y register
-    pub y: u8,
+    pub(crate) y: u8,
     /// Stack pointer
-    pub stkp: u8,
+    pub(crate) stkp: u8,
     /// Program counter
-    pub pc: u16,
+    pub(crate) pc: u16,
     /// STATUS register
-    pub status: CpuFlags,
+    pub(crate) status: CpuFlags,
 
+    data: CpuData,
+}
+
+#[derive(Copy, Clone, Debug)]
+struct CpuData {
     /// Cycles left on current instruction
     ///
     /// Contains the amount of cycles
@@ -103,13 +105,14 @@ impl Cpu {
             pc: 0,
             status: CpuFlags::empty(),
 
-            cycles: 0,
-            opcode: 0,
-            fetched: 0,
-            addr_abs: 0,
-            addr_rel: 0,
-
-            clock_counter: 0,
+            data: CpuData {
+                cycles: 0,
+                opcode: 0,
+                fetched: 0,
+                addr_abs: 0,
+                addr_rel: 0,
+                clock_counter: 0,
+            },
         }
     }
 
@@ -120,7 +123,7 @@ impl Cpu {
     pub fn system_clock(&mut self) {
         self.bus.ppu.clock();
 
-        if self.clock_counter % 3 == 0 {
+        if self.data.clock_counter % 3 == 0 {
             self.clock();
         }
 
@@ -130,7 +133,7 @@ impl Cpu {
         }
 
         // TODO: Test if wrapping_add breaks anything
-        self.clock_counter = self.clock_counter.wrapping_add(1);
+        self.data.clock_counter = self.data.clock_counter.wrapping_add(1);
     }
 
     /// **System reset**
@@ -139,7 +142,7 @@ impl Cpu {
     pub fn system_reset(&mut self) {
         self.reset();
         self.bus.reset();
-        self.clock_counter = 0;
+        self.data.clock_counter = 0;
     }
 
     /// Write `data` to memory at address `addr`
@@ -182,9 +185,9 @@ impl Cpu {
     /// The PC will be set to the value pointed by the
     /// 16-bit pointer found at 0xFFFC
     pub fn reset(&mut self) {
-        self.addr_abs = 0xFFFC;
-        let low = self.read(self.addr_abs) as u16;
-        let high = self.read(self.addr_abs + 1) as u16;
+        self.data.addr_abs = 0xFFFC;
+        let low = self.read(self.data.addr_abs) as u16;
+        let high = self.read(self.data.addr_abs + 1) as u16;
         self.pc = high << 8 | low;
 
         self.a = 0;
@@ -193,11 +196,11 @@ impl Cpu {
         self.stkp = 0xFD;
         self.status = CpuFlags::empty() | CpuFlags::U;
 
-        self.addr_abs = 0;
-        self.addr_rel = 0;
-        self.fetched = 0;
+        self.data.addr_abs = 0;
+        self.data.addr_rel = 0;
+        self.data.fetched = 0;
 
-        self.cycles = 8;
+        self.data.cycles = 8;
     }
 
     /// **Interrupt request**
@@ -234,12 +237,12 @@ impl Cpu {
         self.write(STACK_BASE + self.stkp as u16, self.status.bits());
         self.stkp -= 1;
 
-        self.addr_abs = 0xFFFE;
-        let low = self.read(self.addr_abs) as u16;
-        let high = self.read(self.addr_abs + 1) as u16;
+        self.data.addr_abs = 0xFFFE;
+        let low = self.read(self.data.addr_abs) as u16;
+        let high = self.read(self.data.addr_abs + 1) as u16;
         self.pc = (high << 8) | low;
 
-        self.cycles = 7;
+        self.data.cycles = 7;
     }
 
     /// **Non-maskable interrupt**
@@ -266,12 +269,12 @@ impl Cpu {
         self.write(STACK_BASE + self.stkp as u16, self.status.bits());
         self.stkp -= 1;
 
-        self.addr_abs = 0xFFFA;
-        let low = self.read(self.addr_abs) as u16;
-        let high = self.read(self.addr_abs + 1) as u16;
+        self.data.addr_abs = 0xFFFA;
+        let low = self.read(self.data.addr_abs) as u16;
+        let high = self.read(self.data.addr_abs + 1) as u16;
         self.pc = (high << 8) | low;
 
-        self.cycles = 8;
+        self.data.cycles = 8;
     }
 
     /// **Executes a clock cycle**
@@ -280,14 +283,14 @@ impl Cpu {
     /// Otherwise, it reads the current instruction from the PC
     /// and executes it.
     pub fn clock(&mut self) {
-        if self.cycles != 0 {
-            self.cycles -= 1;
+        if self.data.cycles != 0 {
+            self.data.cycles -= 1;
             return;
         }
 
         // Read opcode from address at the Program Counter
         let opcode = self.read_inc_pc();
-        self.opcode = opcode;
+        self.data.opcode = opcode;
 
         let ins = Instruction::lookup(opcode);
 
@@ -306,24 +309,24 @@ impl Cpu {
         // If both return 0, an additional cycle is needed.
         cycles += add_cycle1 & add_cycle2;
 
-        self.cycles = cycles;
+        self.data.cycles = cycles;
 
         // Must be always set to true
         self.status.set(CpuFlags::U, true);
 
-        self.cycles -= 1;
+        self.data.cycles -= 1;
     }
 
     /// Fetches the data required by the current instruction.
     ///
     /// Not used by the implied address mode.
     fn fetch(&mut self) -> u8 {
-        let addrmode = Instruction::lookup(self.opcode).addrmode;
+        let addrmode = Instruction::lookup(self.data.opcode).addrmode;
         // Compare function pointers
         if addrmode as usize != Cpu::imp as usize {
-            self.fetched = self.read(self.addr_abs);
+            self.data.fetched = self.read(self.data.addr_abs);
         }
-        self.fetched
+        self.data.fetched
     }
 }
 

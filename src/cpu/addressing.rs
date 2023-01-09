@@ -8,7 +8,7 @@ impl Cpu {
     /// Either no data is part of the instruction
     /// or the data used is on the A register
     pub fn imp(&mut self) -> u8 {
-        self.fetched = self.a;
+        self.data.fetched = self.a;
         0
     }
 
@@ -18,7 +18,7 @@ impl Cpu {
     /// byte of an instruction.
     /// The program counter will be increased.
     pub fn imm(&mut self) -> u8 {
-        self.addr_abs = self.pc;
+        self.data.addr_abs = self.pc;
         self.pc += 1;
         0
     }
@@ -38,8 +38,8 @@ impl Cpu {
     pub fn zp0(&mut self) -> u8 {
         // Doing this, the higher 8 bits can only be 0x00, which is
         // page 0x00
-        self.addr_abs = self.read_inc_pc() as u16;
-        self.addr_abs &= 0x00FF; // just to be sure
+        self.data.addr_abs = self.read_inc_pc() as u16;
+        self.data.addr_abs &= 0x00FF; // just to be sure
         0
     }
 
@@ -48,8 +48,8 @@ impl Cpu {
     /// Same as the above, but with an offset to the desired address
     /// as set by the X register
     pub fn zpx(&mut self) -> u8 {
-        self.addr_abs = self.read_inc_pc() as u16 + self.x as u16;
-        self.addr_abs &= 0x00FF; // prevents changing page
+        self.data.addr_abs = self.read_inc_pc() as u16 + self.x as u16;
+        self.data.addr_abs &= 0x00FF; // prevents changing page
         0
     }
 
@@ -57,8 +57,8 @@ impl Cpu {
     ///
     /// Same as the above, but the offset is set by the Y register
     pub fn zpy(&mut self) -> u8 {
-        self.addr_abs = self.read_inc_pc() as u16 + self.y as u16;
-        self.addr_abs &= 0x00FF; // prevents changing page
+        self.data.addr_abs = self.read_inc_pc() as u16 + self.y as u16;
+        self.data.addr_abs &= 0x00FF; // prevents changing page
         0
     }
 
@@ -70,7 +70,7 @@ impl Cpu {
         let low = self.read_inc_pc() as u16;
         let high = self.read_inc_pc() as u16;
 
-        self.addr_abs = (high << 8) | low;
+        self.data.addr_abs = (high << 8) | low;
         0
     }
 
@@ -83,12 +83,12 @@ impl Cpu {
         let low = self.read_inc_pc() as u16;
         let high = self.read_inc_pc() as u16;
 
-        self.addr_abs = (high << 8) | low;
-        self.addr_abs += self.x as u16;
+        self.data.addr_abs = (high << 8) | low;
+        self.data.addr_abs += self.x as u16;
 
         // If the page is changed by the addition, an additional
         // clock cycle may be necessary
-        u8::from(self.addr_abs & 0xFF00 != high << 8)
+        u8::from(self.data.addr_abs & 0xFF00 != high << 8)
     }
 
     /// Absolute addressing with X register offset
@@ -100,12 +100,12 @@ impl Cpu {
         let low = self.read_inc_pc() as u16;
         let high = self.read_inc_pc() as u16;
 
-        self.addr_abs = (high << 8) | low;
-        self.addr_abs += self.y as u16;
+        self.data.addr_abs = (high << 8) | low;
+        self.data.addr_abs += self.y as u16;
 
         // If the page is changed by the addition, an additional
         // clock cycle may be necessary
-        u8::from(self.addr_abs & 0xFF00 != high << 8)
+        u8::from(self.data.addr_abs & 0xFF00 != high << 8)
     }
 
     /// Indirect addressing
@@ -126,12 +126,12 @@ impl Cpu {
             // this, we will implement the bug.
             let low = self.read(pointer) as u16;
             let high = self.read(pointer & 0xFF00) as u16;
-            self.addr_abs = (high << 8) | low;
+            self.data.addr_abs = (high << 8) | low;
         } else {
             // Normal behaviour
             let low = self.read(pointer) as u16;
             let high = self.read(pointer + 1) as u16;
-            self.addr_abs = (high << 8) | low;
+            self.data.addr_abs = (high << 8) | low;
         }
         0
     }
@@ -149,7 +149,7 @@ impl Cpu {
         let low = self.read(zero_addr & 0x00FF) as u16;
         let high = self.read((zero_addr + 1) & 0x00FF) as u16;
 
-        self.addr_abs = (high << 8) | low;
+        self.data.addr_abs = (high << 8) | low;
         0
     }
 
@@ -167,12 +167,12 @@ impl Cpu {
         let low = self.read(zero_addr & 0x00FF) as u16;
         let high = self.read((zero_addr + 1) & 0x00FF) as u16;
 
-        self.addr_abs = (high << 8) | low;
-        self.addr_abs += self.y as u16;
+        self.data.addr_abs = (high << 8) | low;
+        self.data.addr_abs += self.y as u16;
 
         // If the page is changed by the addition, an additional
         // clock cycle may be necessary
-        u8::from(self.addr_abs & 0xFF00 != high << 8)
+        u8::from(self.data.addr_abs & 0xFF00 != high << 8)
     }
 
     /// Relative addressing
@@ -181,13 +181,13 @@ impl Cpu {
     /// Branching instructions can only jump to a location further
     /// than 127 bytes from its location.
     pub fn rel(&mut self) -> u8 {
-        self.addr_rel = self.read_inc_pc() as u16;
+        self.data.addr_rel = self.read_inc_pc() as u16;
 
-        if self.addr_rel & 0x0080 != 0 {
+        if self.data.addr_rel & 0x0080 != 0 {
             // the 8 bit value read by the CPU is negative
             // if this is the case, we set the higher 8 bits
             // of self.addr_rel to 0xFF
-            self.addr_rel |= 0xFF00;
+            self.data.addr_rel |= 0xFF00;
         }
         0
     }
