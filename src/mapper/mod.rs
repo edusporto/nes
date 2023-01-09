@@ -12,11 +12,11 @@ use std::fmt::Debug;
 /// Allows the creation of generic Mappers.
 pub trait Mapper: Debug {
     /// Map reads from the CPU.
-    fn cpu_map_read(&self, addr: u16) -> (bool, u32);
+    fn cpu_map_read(&self, addr: u16) -> Option<u32>;
     /// Map writes from the CPU.
-    fn cpu_map_write(&self, addr: u16, data: u8) -> (bool, u32);
+    fn cpu_map_write(&self, addr: u16, data: u8) -> Option<u32>;
     /// Map reads from the PPU.
-    fn ppu_map_read(&self, addr: u16) -> (bool, u32);
+    fn ppu_map_read(&self, addr: u16) -> Option<u32>;
     /// Map writes from the PPU.
-    fn ppu_map_write(&self, addr: u16) -> (bool, u32);
+    fn ppu_map_write(&self, addr: u16) -> Option<u32>;
 }

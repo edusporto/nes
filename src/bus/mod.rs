@@ -55,9 +55,8 @@ impl Bus {
                 .as_ref()
                 .expect("No cartridge inserted!")
                 .borrow_mut();
-            let (mapped, _mapped_data) = cart.cpu_map_write(addr, data);
 
-            if mapped {
+            if let Some(_mapped_data) = cart.cpu_map_write(addr, data) {
                 return;
             }
         }
@@ -85,9 +84,8 @@ impl Bus {
             .as_ref()
             .expect("No cartridge inserted!")
             .borrow();
-        let (mapped, mapped_data) = cart.cpu_map_read(addr);
 
-        if mapped {
+        if let Some(mapped_data) = cart.cpu_map_read(addr) {
             return mapped_data;
         }
 

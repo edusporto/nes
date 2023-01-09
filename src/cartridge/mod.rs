@@ -133,42 +133,30 @@ impl Cartridge {
         })
     }
 
-    pub fn cpu_map_read(&self, addr: u16) -> (bool, u8) {
-        let (mapped, mapped_addr) = self.mapper.cpu_map_read(addr);
-        match mapped {
-            true => (true, self.program_memory[mapped_addr as usize]),
-            false => (false, 0),
-        }
+    pub fn cpu_map_read(&self, addr: u16) -> Option<u8> {
+        self.mapper
+            .cpu_map_read(addr)
+            .map(|mapped_addr| self.program_memory[mapped_addr as usize])
     }
 
-    pub fn cpu_map_write(&mut self, addr: u16, data: u8) -> (bool, u8) {
-        let (mapped, mapped_addr) = self.mapper.cpu_map_write(addr, data);
-        match mapped {
-            true => {
-                self.program_memory[mapped_addr as usize] = data;
-                (true, self.program_memory[mapped_addr as usize])
-            }
-            false => (false, 0),
-        }
+    pub fn cpu_map_write(&mut self, addr: u16, data: u8) -> Option<u8> {
+        self.mapper.cpu_map_write(addr, data).map(|mapped_addr| {
+            self.program_memory[mapped_addr as usize] = data;
+            self.program_memory[mapped_addr as usize]
+        })
     }
 
-    pub fn ppu_map_read(&self, addr: u16) -> (bool, u8) {
-        let (mapped, mapped_addr) = self.mapper.ppu_map_read(addr);
-        match mapped {
-            true => (true, self.character_memory[mapped_addr as usize]),
-            false => (false, 0),
-        }
+    pub fn ppu_map_read(&self, addr: u16) -> Option<u8> {
+        self.mapper
+            .ppu_map_read(addr)
+            .map(|mapped_addr| self.character_memory[mapped_addr as usize])
     }
 
-    pub fn ppu_map_write(&mut self, addr: u16, data: u8) -> (bool, u8) {
-        let (mapped, mapped_addr) = self.mapper.ppu_map_write(addr);
-        match mapped {
-            true => {
-                self.character_memory[mapped_addr as usize] = data;
-                (true, self.character_memory[mapped_addr as usize])
-            }
-            false => (false, 0),
-        }
+    pub fn ppu_map_write(&mut self, addr: u16, data: u8) -> Option<u8> {
+        self.mapper.ppu_map_write(addr).map(|mapped_addr| {
+            self.character_memory[mapped_addr as usize] = data;
+            self.character_memory[mapped_addr as usize]
+        })
     }
 }
 
