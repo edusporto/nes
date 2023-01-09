@@ -61,9 +61,9 @@ impl From<[u8; 4]> for OamEntry {
     }
 }
 
-impl Into<[u8; 4]> for OamEntry {
-    fn into(self) -> [u8; 4] {
-        [self.y, self.tile_id, self.attribute, self.x]
+impl From<OamEntry> for [u8; 4] {
+    fn from(entry: OamEntry) -> Self {
+        [entry.y, entry.tile_id, entry.attribute, entry.x]
     }
 }
 

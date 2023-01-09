@@ -4,14 +4,14 @@ use crate::system::cpu::{flags::CpuFlags, Cpu, Instruction, STACK_BASE};
 impl Cpu {
     /// Helper function. Sets the Z flag if the accumulator
     /// is 0.
-    fn set_zero(&mut self) {
-        self.status.set(CpuFlags::Z, self.a == 0);
+    fn set_zero_flag(&mut self, value: u8) {
+        self.status.set(CpuFlags::Z, value == 0);
     }
 
     /// Helper function. Sets the N flag if the accumulator
     /// is negative.
-    fn set_negative(&mut self) {
-        self.status.set(CpuFlags::N, self.a & 0x80 != 0);
+    fn set_negative_flag(&mut self, value: u8) {
+        self.status.set(CpuFlags::N, value & 0x80 != 0);
     }
 
     /// Helper function. Branches the Program Counter and adds
@@ -118,8 +118,8 @@ impl Cpu {
 
         self.a &= self.data.fetched;
 
-        self.set_zero();
-        self.set_negative();
+        self.set_zero_flag(self.a);
+        self.set_negative_flag(self.a);
 
         1
     }
@@ -193,9 +193,10 @@ impl Cpu {
 
         let result = self.a & self.data.fetched;
         // 0xFF to keep consistency
-        self.status.set(CpuFlags::Z, result & 0xFF == 0);
-        self.status
-            .set(CpuFlags::N, self.data.fetched & (1 << 7) != 0);
+
+        self.set_zero_flag(result);
+        self.set_negative_flag(self.data.fetched);
+
         self.status
             .set(CpuFlags::V, self.data.fetched & (1 << 6) != 0);
 
@@ -385,8 +386,9 @@ impl Cpu {
         let new = self.data.fetched.wrapping_sub(1);
 
         self.write(self.data.addr_abs, new);
-        self.status.set(CpuFlags::N, new & 0x80 != 0);
-        self.status.set(CpuFlags::Z, new & 0xFF == 0);
+
+        self.set_negative_flag(new);
+        self.set_zero_flag(new);
 
         0
     }
@@ -398,8 +400,8 @@ impl Cpu {
     /// May change the N, Z flags.
     pub fn dex(&mut self) -> u8 {
         self.x = self.x.wrapping_sub(1);
-        self.status.set(CpuFlags::N, self.x & 0x80 != 0);
-        self.status.set(CpuFlags::Z, self.x & 0xFF == 0);
+        self.set_negative_flag(self.x);
+        self.set_zero_flag(self.x);
         0
     }
 
@@ -410,8 +412,8 @@ impl Cpu {
     /// May change the N, Z flags.
     pub fn dey(&mut self) -> u8 {
         self.y = self.y.wrapping_sub(1);
-        self.status.set(CpuFlags::N, self.y & 0x80 != 0);
-        self.status.set(CpuFlags::Z, self.y & 0xFF == 0);
+        self.set_negative_flag(self.y);
+        self.set_zero_flag(self.y);
         0
     }
 
@@ -428,8 +430,8 @@ impl Cpu {
         let new = self.a ^ self.data.fetched;
 
         self.a = new;
-        self.set_negative();
-        self.set_zero();
+        self.set_negative_flag(self.a);
+        self.set_zero_flag(self.a);
 
         1
     }
@@ -445,8 +447,9 @@ impl Cpu {
         let new = self.data.fetched.wrapping_add(1);
 
         self.write(self.data.addr_abs, new);
-        self.status.set(CpuFlags::N, new & 0x80 != 0);
-        self.status.set(CpuFlags::Z, new & 0xFF == 0);
+
+        self.set_negative_flag(new);
+        self.set_zero_flag(new);
 
         0
     }
@@ -458,8 +461,8 @@ impl Cpu {
     /// May change the N, Z flags.
     pub fn inx(&mut self) -> u8 {
         self.x = self.x.wrapping_add(1);
-        self.status.set(CpuFlags::N, self.x & 0x80 != 0);
-        self.status.set(CpuFlags::Z, self.x & 0xFF == 0);
+        self.set_negative_flag(self.x);
+        self.set_zero_flag(self.x);
         0
     }
 
@@ -470,8 +473,8 @@ impl Cpu {
     /// May change the N, Z flags.
     pub fn iny(&mut self) -> u8 {
         self.y = self.y.wrapping_add(1);
-        self.status.set(CpuFlags::N, self.y & 0x80 != 0);
-        self.status.set(CpuFlags::Z, self.y & 0xFF == 0);
+        self.set_negative_flag(self.y);
+        self.set_zero_flag(self.y);
         0
     }
 
@@ -512,8 +515,8 @@ impl Cpu {
         self.fetch();
 
         self.a = self.data.fetched;
-        self.set_negative();
-        self.set_zero();
+        self.set_negative_flag(self.a);
+        self.set_zero_flag(self.a);
 
         1
     }
@@ -612,8 +615,8 @@ impl Cpu {
         self.fetch();
 
         self.a |= self.data.fetched;
-        self.set_negative();
-        self.set_zero();
+        self.set_negative_flag(self.a);
+        self.set_zero_flag(self.a);
 
         1
     }
@@ -656,8 +659,8 @@ impl Cpu {
     pub fn pla(&mut self) -> u8 {
         self.stkp += 1;
         self.a = self.read(STACK_BASE + self.stkp as u16);
-        self.set_zero();
-        self.set_negative();
+        self.set_zero_flag(self.a);
+        self.set_negative_flag(self.a);
         0
     }
 
@@ -874,8 +877,8 @@ impl Cpu {
     pub fn tax(&mut self) -> u8 {
         self.x = self.a;
 
-        self.status.set(CpuFlags::N, self.x & 0x80 != 0);
-        self.status.set(CpuFlags::Z, self.x & 0xFF == 0);
+        self.set_negative_flag(self.x);
+        self.set_zero_flag(self.x);
 
         0
     }
@@ -888,8 +891,8 @@ impl Cpu {
     pub fn tay(&mut self) -> u8 {
         self.y = self.a;
 
-        self.status.set(CpuFlags::N, self.y & 0x80 != 0);
-        self.status.set(CpuFlags::Z, self.y & 0xFF == 0);
+        self.set_negative_flag(self.y);
+        self.set_zero_flag(self.y);
 
         0
     }
@@ -902,8 +905,8 @@ impl Cpu {
     pub fn tsx(&mut self) -> u8 {
         self.x = self.stkp;
 
-        self.status.set(CpuFlags::N, self.x & 0x80 != 0);
-        self.status.set(CpuFlags::Z, self.x & 0xFF == 0);
+        self.set_negative_flag(self.x);
+        self.set_zero_flag(self.x);
 
         0
     }
@@ -916,8 +919,8 @@ impl Cpu {
     pub fn txa(&mut self) -> u8 {
         self.a = self.x;
 
-        self.set_negative();
-        self.set_zero();
+        self.set_negative_flag(self.a);
+        self.set_zero_flag(self.a);
 
         0
     }
@@ -936,8 +939,8 @@ impl Cpu {
     pub fn tya(&mut self) -> u8 {
         self.a = self.y;
 
-        self.set_negative();
-        self.set_zero();
+        self.set_negative_flag(self.a);
+        self.set_zero_flag(self.a);
 
         0
     }

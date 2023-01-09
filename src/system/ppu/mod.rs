@@ -20,15 +20,15 @@ pub const PPU_ADDR_START: u16 = 0x2000;
 pub const PPU_ADDR_END: u16 = 0x3FFF;
 
 #[derive(FromPrimitive)]
-pub enum PPUReadWriteAddr {
-    ControlFlag = 0,
-    MaskFlag = 1,
-    StatusFlag = 2,
-    OAMAddressFlag = 3,
-    OAMDataFlag = 4,
-    ScrollFlag = 5,
-    PPUAddressFlag = 6,
-    PPUDataFlag = 7,
+pub enum PPUReadWriteFlags {
+    Control = 0,
+    Mask = 1,
+    Status = 2,
+    OAMAddress = 3,
+    OAMData = 4,
+    Scroll = 5,
+    PPUAddress = 6,
+    PPUData = 7,
 }
 
 #[derive(Clone, Debug)]
@@ -276,29 +276,29 @@ impl Ppu {
     }
 
     pub fn cpu_write(&mut self, addr: u16, data: u8) {
-        use PPUReadWriteAddr::*;
+        use PPUReadWriteFlags::*;
 
         let addr = addr & 0x07; // mirrors on 8 entries (3 bits)
 
         match FromPrimitive::from_u16(addr) {
-            Some(ControlFlag) => {
+            Some(Control) => {
                 self.control = ControlReg::from_bits_truncate(data);
                 self.tram_addr
                     .set_nametable_x(self.control.contains(ControlReg::NAMETABLE_X));
                 self.tram_addr
                     .set_nametable_y(self.control.contains(ControlReg::NAMETABLE_Y));
             }
-            Some(MaskFlag) => {
+            Some(Mask) => {
                 self.mask = MaskReg::from_bits_truncate(data);
             }
-            Some(StatusFlag) => {}
-            Some(OAMAddressFlag) => {
+            Some(Status) => {}
+            Some(OAMAddress) => {
                 self.oam_addr = data;
             }
-            Some(OAMDataFlag) => {
+            Some(OAMData) => {
                 self.oam.set_byte(self.oam_addr, data);
             }
-            Some(ScrollFlag) => match self.address_latch {
+            Some(Scroll) => match self.address_latch {
                 0 => {
                     // write contains X offset
                     self.fine_x = data & 0x07; // mirrors on 8 entries (3 bits)
@@ -312,7 +312,7 @@ impl Ppu {
                     self.address_latch = 0;
                 }
             },
-            Some(PPUAddressFlag) => match self.address_latch {
+            Some(PPUAddress) => match self.address_latch {
                 // allows the PPU address bus to be accessed by the CPU
                 0 => {
                     // latches high byte of address
@@ -327,7 +327,7 @@ impl Ppu {
                     self.address_latch = 0;
                 }
             },
-            Some(PPUDataFlag) => {
+            Some(PPUData) => {
                 self.ppu_write(self.vram_addr.0, data);
 
                 // writes from PPU data increment the nametable
@@ -347,16 +347,16 @@ impl Ppu {
     }
 
     pub fn cpu_read(&mut self, addr: u16) -> u8 {
-        use PPUReadWriteAddr::*;
+        use PPUReadWriteFlags::*;
 
         // only 8 entries
         let addr = addr & 0x07;
         let mut data: u8 = 0;
 
         match FromPrimitive::from_u16(addr) {
-            Some(ControlFlag) => {}
-            Some(MaskFlag) => {}
-            Some(StatusFlag) => {
+            Some(Control) => {}
+            Some(Mask) => {}
+            Some(Status) => {
                 // resets some parts of the circuit,
                 // bottom 5 bits of the status flag contains noise that may be
                 // used by games
@@ -364,13 +364,13 @@ impl Ppu {
                 self.status.set(StatusReg::VERTICAL_BLANK, false);
                 self.address_latch = 0;
             }
-            Some(OAMAddressFlag) => {}
-            Some(OAMDataFlag) => {
+            Some(OAMAddress) => {}
+            Some(OAMData) => {
                 data = self.oam.get_byte(self.oam_addr);
             }
-            Some(ScrollFlag) => {}
-            Some(PPUAddressFlag) => {}
-            Some(PPUDataFlag) => {
+            Some(Scroll) => {}
+            Some(PPUAddress) => {}
+            Some(PPUData) => {
                 // reads the PPU data with 1 cycle of delay
                 data = self.ppu_data_buffer;
                 // prepares the buffer for the next cycle

@@ -33,7 +33,7 @@ impl Nes {
     }
 
     pub fn controllers(&self) -> &[Controller; 2] {
-        &self.system.controllers()
+        self.system.controllers()
     }
 
     pub fn mut_controllers(&mut self) -> &mut [Controller; 2] {
