@@ -4,14 +4,15 @@ use std::fs;
 use std::io::{self, Read, Seek, SeekFrom};
 
 use binread::{BinRead, BinReaderExt};
+use thiserror::Error;
 
 use crate::mapper::mappers;
 use crate::mapper::Mapper;
 
 #[derive(Debug)]
 pub struct Cartridge {
-    pub mirror: CartridgeMirror,
-    pub header: CartridgeHeader,
+    pub(crate) mirror: CartridgeMirror,
+    pub(crate) header: CartridgeHeader,
 
     program_memory: Vec<u8>,
     character_memory: Vec<u8>,
@@ -43,7 +44,7 @@ pub struct CartridgeHeader {
     program_ram_size: u8,
     tv_system1: u8,
     tv_system2: u8,
-    unused: [u8; 5],
+    _unused: [u8; 5],
 }
 
 /// Cartridge Error
@@ -51,43 +52,25 @@ pub struct CartridgeHeader {
 /// - FileError: Could not read cartridge file
 /// - HeaderError: Could not read the file's header
 /// - FileTypeError: Unknown file type for cartridge
-#[derive(Debug)]
-pub enum Error {
-    FileError(io::Error),
-    HeaderError(binread::Error),
+/// - UnimplementedError: Functionality not yet implemented
+#[derive(Error, Debug)]
+pub enum CartridgeError {
+    #[error("could not read ROM file: {0}")]
+    FileError(#[from] io::Error),
+    #[error("invalid header for ROM file")]
+    HeaderError(#[from] binread::Error),
+    #[error("unknown ROM file type: {0}")]
     FileTypeError(u8),
-}
-
-impl std::error::Error for Error {}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::FileError(_) => write!(f, "could not read ROM file"),
-            Error::HeaderError(_) => write!(f, "invalid header for ROM file"),
-            Error::FileTypeError(_) => write!(f, "unknown ROM file type"),
-        }
-    }
-}
-
-impl From<io::Error> for Error {
-    fn from(err: io::Error) -> Self {
-        Self::FileError(err)
-    }
-}
-
-impl From<binread::Error> for Error {
-    fn from(err: binread::Error) -> Self {
-        Self::HeaderError(err)
-    }
+    #[error("unimplemented: {0}")]
+    UnimplementedError(String),
 }
 
 impl Cartridge {
-    pub fn from_file(file_name: &str) -> Result<Cartridge, Error> {
+    pub fn from_file(file_name: &str) -> Result<Cartridge, CartridgeError> {
         Cartridge::from_bytes(&fs::read(file_name)?)
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Cartridge, Error> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Cartridge, CartridgeError> {
         let mut reader = binread::io::Cursor::new(bytes);
 
         let header: CartridgeHeader = reader.read_be()?;
@@ -113,7 +96,7 @@ impl Cartridge {
         let file_type: u8 = 1;
 
         match file_type {
-            0 => todo!(),
+            0 => return Err(CartridgeError::UnimplementedError("file type 0".into())),
             1 => {
                 program_banks = header.program_rom_chunks;
                 program_memory.resize(program_banks as usize * 16384, 0);
@@ -123,13 +106,17 @@ impl Cartridge {
                 character_memory.resize(character_banks as usize * 8192, 0);
                 reader.read_exact(&mut character_memory)?;
             }
-            2 => todo!(),
-            _ => return Err(Error::FileTypeError(file_type)),
+            2 => return Err(CartridgeError::UnimplementedError("file type 2".into())),
+            _ => return Err(CartridgeError::FileTypeError(file_type)),
         };
 
         let mapper = match mapper_id {
             0 => Box::new(mappers::Mapper0::new(program_banks, character_banks)),
-            _ => todo!(),
+            _ => {
+                return Err(CartridgeError::UnimplementedError(format!(
+                    "mapper with id {mapper_id}"
+                )))
+            }
         };
 
         Ok(Cartridge {
