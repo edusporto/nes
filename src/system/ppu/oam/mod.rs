@@ -1,4 +1,4 @@
-//! Module for the Object Attribute Memory
+//! Module for the Object Attribute Memory (OAM).
 
 /// Object Address Memory. Stores sprites.
 #[derive(Clone, Copy, Debug)]
@@ -23,6 +23,7 @@ impl Oam {
         OamEntry::from(self.mem[index as usize & 63])
     }
 
+    #[allow(dead_code)]
     pub fn set_entry(&mut self, index: u8, entry: OamEntry) {
         // mirror with 63 to avoid overflow
         self.mem[index as usize & 63] = entry.into();

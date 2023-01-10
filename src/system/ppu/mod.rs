@@ -1,5 +1,6 @@
 //! Module for the Picture Processing Unit.
 
+pub(crate) mod dma;
 mod oam;
 mod registers;
 mod rendering;
@@ -12,9 +13,12 @@ use num_traits::FromPrimitive;
 
 use crate::cartridge::{Cartridge, CartridgeMirror};
 use crate::screen::{pixel, Screen};
-use crate::system::ram::{AFTER_RAM_END, RAM_END, RAM_START};
+use crate::system::ram::{AFTER_RAM_END, RAM_ADDR_END, RAM_ADDR_START};
+
 use oam::*;
 use registers::*;
+use rendering::background::BackgroundData;
+use rendering::foreground::ForegroundData;
 
 pub const PPU_ADDR_START: u16 = 0x2000;
 pub const PPU_ADDR_END: u16 = 0x3FFF;
@@ -48,7 +52,7 @@ pub struct Ppu {
     cycle: i16,
     scanline: i16,
 
-    oam: Oam,
+    pub(crate) oam: Oam,
     oam_addr: u8,
 
     status: registers::StatusReg,
@@ -67,7 +71,10 @@ pub struct Ppu {
     fine_x: u8,
 
     /// Background data, used for rendering the background
-    bg: rendering::BackgroundData,
+    bg: BackgroundData,
+
+    /// Foreground data, used for rendering the foreground
+    fg: ForegroundData,
 }
 
 impl Ppu {
@@ -92,7 +99,8 @@ impl Ppu {
             vram_addr: RamAddrData(0),
             tram_addr: RamAddrData(0),
             fine_x: 0,
-            bg: rendering::BackgroundData::default(),
+            bg: BackgroundData::default(),
+            fg: ForegroundData::default(),
         }
     }
 
@@ -102,8 +110,10 @@ impl Ppu {
         self.ppu_data_buffer = 0;
         self.scanline = 0;
         self.cycle = 0;
-        self.bg = rendering::BackgroundData::default();
+        self.bg = BackgroundData::default();
+        self.fg = ForegroundData::default();
         self.status = StatusReg::empty();
+        self.mask = MaskReg::empty();
         self.control = ControlReg::empty();
         self.vram_addr = RamAddrData(0);
         self.tram_addr = RamAddrData(0);
@@ -135,7 +145,12 @@ impl Ppu {
 
                 if self.scanline == -1 && self.cycle == 1 {
                     // start of new frame
-                    self.status.set(StatusReg::VERTICAL_BLANK, false)
+                    self.status.set(StatusReg::VERTICAL_BLANK, false);
+                    self.status.set(StatusReg::SPRITE_OVERFLOW, false);
+                    self.status.set(StatusReg::SPRITE_ZERO_HIT, false);
+
+                    self.fg.sprite_shifter_pattern_low = [0; 8];
+                    self.fg.sprite_shifter_pattern_high = [0; 8];
                 }
 
                 if (2..=257).contains(&self.cycle) || (321..=337).contains(&self.cycle) {
@@ -210,6 +225,146 @@ impl Ppu {
                 if self.scanline == -1 && (280..=304).contains(&self.cycle) {
                     self.transfer_address_y();
                 }
+
+                // This point on (up until the end of the scope) deals with foreground rendering.
+                // In this implementation, foreground rendering is not cycle-accurate to the NES.
+                if self.cycle == 257 && self.scanline >= 0 {
+                    // This part represents the end of the visible part of a scanline.
+                    // We will now determine which sprites will be visible on the next line and
+                    // preload information into the foreground buffers.
+
+                    // Clear the sprite memory
+                    self.fg.sprite_scanline = [OamEntry::from([0xFF, 0xFF, 0xFF, 0xFF]); 8];
+                    self.fg.sprite_count = 0;
+                    self.fg.sprite_zero_hit_possible = false;
+
+                    // Clear residual information in sprite pattern shifters
+                    self.fg.sprite_shifter_pattern_low = [0; 8];
+                    self.fg.sprite_shifter_pattern_high = [0; 8];
+
+                    for oam_index in 0..64 {
+                        if self.fg.sprite_count >= 9 {
+                            break;
+                        }
+
+                        // Cast to signed integers
+                        let diff: i16 = self.scanline - self.oam.get_entry(oam_index).y as i16;
+
+                        let sprite_size_cmp = if self.control.contains(ControlReg::SPRITE_SIZE) {
+                            16
+                        } else {
+                            8
+                        };
+
+                        if diff >= 0 && diff < sprite_size_cmp {
+                            // Ccanline at least as high as the sprite and resides in the sprite vertically
+                            if self.fg.sprite_count < 8 {
+                                if oam_index == 0 {
+                                    // May trigger a sprite zero hit
+                                    self.fg.sprite_zero_hit_possible = true;
+                                }
+
+                                self.fg.sprite_scanline[self.fg.sprite_count as usize] =
+                                    self.oam.get_entry(oam_index);
+                                self.fg.sprite_count += 1;
+                            }
+                        }
+                    }
+
+                    self.status
+                        .set(StatusReg::SPRITE_OVERFLOW, self.fg.sprite_count > 8);
+
+                    // By this point, the `self.fg.sprite_scanline` array has up to 8 visible sprites
+                    // for the next scanline, which are ranked by priority.
+                }
+
+                if self.cycle == 340 {
+                    // At the end of the scanline, extract the row patterns of each sprite
+
+                    for i in 0..self.fg.sprite_count as usize {
+                        let sprite = self.fg.sprite_scanline[i];
+
+                        let mut sprite_pattern_bits_low: u8;
+                        let mut sprite_pattern_bits_high: u8;
+                        let sprite_pattern_addr_low: u16;
+                        // let sprite_pattern_addr_high: u16; // defined later
+
+                        if !self.control.contains(ControlReg::SPRITE_SIZE) {
+                            // 8x8 sprite mode
+
+                            if sprite.attribute & 0x80 == 0 {
+                                // Sprite is not flipped vertically
+                                sprite_pattern_addr_low =
+                                    (u16::from(self.control.contains(ControlReg::PATTERN_SPRITE))
+                                        << 12)
+                                        | ((sprite.tile_id as u16) << 4)
+                                        | (self.scanline - sprite.y as i16) as u16;
+                            } else {
+                                // Sprite is flipped vertically
+                                sprite_pattern_addr_low =
+                                    (u16::from(self.control.contains(ControlReg::PATTERN_SPRITE))
+                                        << 12)
+                                        | ((sprite.tile_id as u16) << 4)
+                                        | (7 - (self.scanline - sprite.y as i16) as u16);
+                            }
+                        } else {
+                            // 8x16 sprite mode
+                            if sprite.attribute & 0x80 == 0 {
+                                // Sprite is not flipped vertically
+                                if self.scanline - (sprite.y as i16) < 8 {
+                                    // Reading top half tile
+                                    sprite_pattern_addr_low = ((sprite.tile_id as u16 & 0x01)
+                                        << 12)
+                                        | ((sprite.tile_id as u16 & 0xFE) << 4)
+                                        | ((self.scanline - sprite.y as i16) as u16 & 0x07);
+                                } else {
+                                    // Reading bottom half tile
+                                    sprite_pattern_addr_low = ((sprite.tile_id as u16 & 0x01)
+                                        << 12)
+                                        | (((sprite.tile_id as u16 & 0xFE) + 1) << 4)
+                                        | ((self.scanline - sprite.y as i16) as u16 & 0x07);
+                                }
+                            } else {
+                                // Sprite is flipped vertically
+                                if self.scanline - (sprite.y as i16) < 8 {
+                                    // Reading top half tile
+                                    sprite_pattern_addr_low = ((sprite.tile_id as u16 & 0x01)
+                                        << 12)
+                                        | (((sprite.tile_id as u16 & 0xFE) + 1) << 4)
+                                        | ((7 - (self.scanline - sprite.y as i16) as u16) & 0x07);
+                                } else {
+                                    // Reading bottom half tile
+                                    sprite_pattern_addr_low = ((sprite.tile_id as u16 & 0x01)
+                                        << 12)
+                                        | ((sprite.tile_id as u16 & 0xFE) << 4)
+                                        | ((7 - (self.scanline - sprite.y as i16) as u16) & 0x07);
+                                }
+                            }
+                        }
+
+                        let sprite_pattern_addr_high: u16 = sprite_pattern_addr_low + 8;
+
+                        sprite_pattern_bits_low = self.ppu_read(sprite_pattern_addr_low);
+                        sprite_pattern_bits_high = self.ppu_read(sprite_pattern_addr_high);
+
+                        if sprite.attribute & 0x40 != 0 {
+                            // sprite is flipped horizontally, we need to flip the pattern bytes
+                            // `flip_byte` from https://stackoverflow.com/a/2602885
+                            let flip_byte = |mut byte: u8| {
+                                byte = (byte & 0xF0) >> 4 | (byte & 0x0F) << 4;
+                                byte = (byte & 0xCC) >> 2 | (byte & 0x33) << 2;
+                                byte = (byte & 0xAA) >> 1 | (byte & 0x55) << 1;
+                                byte
+                            };
+
+                            sprite_pattern_bits_low = flip_byte(sprite_pattern_bits_low);
+                            sprite_pattern_bits_high = flip_byte(sprite_pattern_bits_high);
+                        }
+
+                        self.fg.sprite_shifter_pattern_low[i] = sprite_pattern_bits_low;
+                        self.fg.sprite_shifter_pattern_high[i] = sprite_pattern_bits_high;
+                    }
+                }
             }
             240 => { /* do nothing! */ }
             (241..=260) => {
@@ -245,10 +400,117 @@ impl Ppu {
             let bg_pal1 = u8::from((self.bg.shifter_attrib_high & bit_mux) > 0);
             bg_palette = (bg_pal1 << 1) | bg_pal0;
         }
+        // end background
 
+        // render the foreground
+        let mut fg_pixel: u8 = 0;
+        let mut fg_palette: u8 = 0;
+        let mut fg_priority: u8 = 0;
+
+        if self.mask.contains(MaskReg::RENDER_SPRITES) {
+            self.fg.sprite_zero_being_rendered = false;
+
+            for i in 0..self.fg.sprite_count as usize {
+                let sprite = self.fg.sprite_scanline[i];
+
+                if sprite.x == 0 {
+                    // scanline collided with sprite, shifters take over
+                    // fine x does not apply to sprites
+
+                    // determine pixel value
+                    let fg_pixel_low: u8 =
+                        u8::from((self.fg.sprite_shifter_pattern_low[i] & 0x80) > 0);
+                    let fg_pixel_high: u8 =
+                        u8::from((self.fg.sprite_shifter_pattern_high[i] & 0x80) > 0);
+                    fg_pixel = (fg_pixel_high << 1) | fg_pixel_low;
+
+                    // extract the palette from bottom two bits
+                    fg_palette = (sprite.attribute & 0x03) + 0x04;
+                    fg_priority = u8::from((sprite.attribute & 0x20) == 0);
+
+                    // if the pixel is not transparent, render it.
+                    // don't bother with sprite order, since earlier sprites
+                    // will have higher priority
+                    if fg_pixel != 0 {
+                        if i == 0 {
+                            self.fg.sprite_zero_being_rendered = true;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        // end foreground
+
+        // Now, we need to combine the background and foreground pixels.
+        let mut pixel: u8 = 0;
+        let mut palette: u8 = 0;
+
+        use std::cmp::Ordering;
+        match (bg_pixel.cmp(&0), fg_pixel.cmp(&0)) {
+            (Ordering::Equal, Ordering::Equal) => {
+                // Both pixels are transparent
+                pixel = 0;
+                palette = 0;
+            }
+            (Ordering::Equal, Ordering::Greater) => {
+                // Background pixel is transparent
+                pixel = fg_pixel;
+                palette = fg_palette;
+            }
+            (Ordering::Greater, Ordering::Equal) => {
+                // Foreground pixel is visible
+                pixel = bg_pixel;
+                palette = bg_palette;
+            }
+            (Ordering::Greater, Ordering::Greater) => {
+                // Both pixels are visible
+                if fg_priority != 0 {
+                    pixel = fg_pixel;
+                    palette = fg_palette;
+                } else {
+                    pixel = bg_pixel;
+                    palette = bg_palette;
+                }
+
+                if self.fg.sprite_zero_hit_possible && self.fg.sprite_zero_being_rendered {
+                    // Sprite zero collides between background and foreground,
+                    // both must be enabled
+                    if self
+                        .mask
+                        .contains(MaskReg::RENDER_BACKGROUND & MaskReg::RENDER_SPRITES)
+                    {
+                        if !self.mask.contains(
+                            MaskReg::RENDER_BACKGROUND_LEFT | MaskReg::RENDER_SPRITES_LEFT,
+                        ) {
+                            if self.cycle >= 9 && self.cycle < 258 {
+                                self.status.set(StatusReg::SPRITE_ZERO_HIT, true);
+                            }
+                        } else if self.cycle >= 1 && self.cycle < 258 {
+                            self.status.set(StatusReg::SPRITE_ZERO_HIT, true);
+                        }
+
+                        // This is probably not the right way to do this, but it is how it
+                        // was done on the reference emulator by Javidx9
+                        // if !u8::from(!self.mask.contains(
+                        //     MaskReg::RENDER_BACKGROUND_LEFT | MaskReg::RENDER_SPRITES_LEFT),
+                        // ) != 0 {
+                        //     if self.cycle >= 9 && self.cycle < 258 {
+                        //         self.status.set(StatusReg::SPRITE_ZERO_HIT, true);
+                        //     }
+                        // } else if self.cycle >= 1 && self.cycle < 258 {
+                        //     self.status.set(StatusReg::SPRITE_ZERO_HIT, true);
+                        // }
+                    }
+                }
+            }
+            _ => { /* other arms are impossible, since fg_pixel and bg_pixel are unsigned */ }
+        }
+
+        // Finally draw the pixel!
         self.screen.set_pixel(
             (self.scanline as usize, (self.cycle - 1) as usize),
-            self.color_from_palette(bg_palette, bg_pixel),
+            self.color_from_palette(palette, pixel),
         );
 
         self.cycle += 1;
@@ -412,7 +674,7 @@ impl Ppu {
         }
 
         match addr {
-            (0..=RAM_END) => {
+            (0..=RAM_ADDR_END) => {
                 self.pattern_table[(addr as usize & 0x1000) >> 12][addr as usize & 0x0FFF] = data;
             }
             (AFTER_RAM_END..=0x3EFF) => match cart.mirror {
@@ -466,7 +728,7 @@ impl Ppu {
         }
 
         match addr {
-            (RAM_START..=RAM_END) => {
+            (RAM_ADDR_START..=RAM_ADDR_END) => {
                 data = self.pattern_table[(addr as usize & 0x1000) >> 12][addr as usize & 0x0FFF];
             }
             (AFTER_RAM_END..=0x3EFF) => match cart.mirror {

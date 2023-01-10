@@ -1,21 +1,9 @@
-//! Defines structures for rendering the background and foreground.
+pub(crate) mod background;
+pub(crate) mod foreground;
 
-use super::registers::MaskReg;
+use crate::system::ppu::{registers::MaskReg, Ppu};
 
-/// Used to render the background.
-#[derive(Copy, Clone, Debug, Default)]
-pub struct BackgroundData {
-    pub next_tile_id: u8,
-    pub next_tile_attrib: u8,
-    pub next_tile_lsb: u8,
-    pub next_tile_msb: u8,
-    pub shifter_pattern_low: u16,
-    pub shifter_pattern_high: u16,
-    pub shifter_attrib_low: u16,
-    pub shifter_attrib_high: u16,
-}
-
-impl super::Ppu {
+impl Ppu {
     pub fn increment_scroll_x(&mut self) {
         if self.mask.contains(MaskReg::RENDER_BACKGROUND)
             || self.mask.contains(MaskReg::RENDER_SPRITES)
@@ -101,6 +89,17 @@ impl super::Ppu {
 
             self.bg.shifter_attrib_low <<= 1;
             self.bg.shifter_attrib_high <<= 1;
+        }
+
+        if self.mask.contains(MaskReg::RENDER_SPRITES) && self.cycle >= 1 && self.cycle < 258 {
+            for i in 0..self.fg.sprite_count as usize {
+                if self.fg.sprite_scanline[i].x > 0 {
+                    self.fg.sprite_scanline[i].x = self.fg.sprite_scanline[i].x.wrapping_sub(1);
+                } else {
+                    self.fg.sprite_shifter_pattern_low[i] <<= 1;
+                    self.fg.sprite_shifter_pattern_high[i] <<= 1;
+                }
+            }
         }
     }
 }

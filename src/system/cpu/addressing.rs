@@ -101,7 +101,7 @@ impl Cpu {
         let high = self.read_inc_pc() as u16;
 
         self.data.addr_abs = (high << 8) | low;
-        self.data.addr_abs += self.y as u16;
+        self.data.addr_abs = self.data.addr_abs.wrapping_add(self.y as u16);
 
         // If the page is changed by the addition, an additional
         // clock cycle may be necessary
@@ -168,7 +168,7 @@ impl Cpu {
         let high = self.read((zero_addr + 1) & 0x00FF) as u16;
 
         self.data.addr_abs = (high << 8) | low;
-        self.data.addr_abs += self.y as u16;
+        self.data.addr_abs = self.data.addr_abs.wrapping_add(self.y as u16);
 
         // If the page is changed by the addition, an additional
         // clock cycle may be necessary

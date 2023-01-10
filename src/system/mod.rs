@@ -57,7 +57,14 @@ impl System {
         self.cpu.bus.ppu.clock();
 
         if self.clock_counter % 3 == 0 {
-            self.cpu.clock();
+            // it may be time to clock the CPU, depending on the status of the DMA
+            // let dma = &mut self.cpu.bus.dma;
+
+            let dma_treated = self.cpu.bus.treat_dma_transfer(self.clock_counter);
+            if !dma_treated {
+                // the DMA isn't transferring data, the CPU is allowed to clock
+                self.cpu.clock();
+            }
         }
 
         if self.cpu.bus.ppu.interrupt_sent() {

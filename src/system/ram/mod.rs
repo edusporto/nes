@@ -1,7 +1,7 @@
 //! Module for the RAM used by the 6502 CPU.
 
 /// Start of RAM
-pub const RAM_START: u16 = 0x0000;
+pub const RAM_ADDR_START: u16 = 0x0000;
 
 /// End of RAM
 ///
@@ -10,7 +10,7 @@ pub const RAM_START: u16 = 0x0000;
 ///
 /// This means that each memory position of the RAM
 /// can be accessed by 4 different addresses.
-pub const RAM_END: u16 = 0x1FFF;
+pub const RAM_ADDR_END: u16 = 0x1FFF;
 
 /// One byte after the end of RAM.
 ///

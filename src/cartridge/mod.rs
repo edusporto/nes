@@ -9,6 +9,7 @@ use thiserror::Error;
 use crate::system::mapper::{mappers, Mapper};
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Cartridge {
     pub(crate) mirror: CartridgeMirror,
     pub(crate) header: CartridgeHeader,
@@ -16,6 +17,7 @@ pub struct Cartridge {
     program_memory: Vec<u8>,
     character_memory: Vec<u8>,
 
+    // These fields might be used later, it's best if we keep them
     mapper_id: u8,
     program_banks: u8,
     character_banks: u8,
@@ -34,15 +36,19 @@ pub enum CartridgeMirror {
 
 /// Format header for iNES
 #[derive(BinRead, Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub struct CartridgeHeader {
     name: [u8; 4],
     program_rom_chunks: u8,
     character_rom_chunks: u8,
     mapper1: u8,
     mapper2: u8,
+
+    // These fields might be used later, it's best if we keep them
     program_ram_size: u8,
     tv_system1: u8,
     tv_system2: u8,
+
     _unused: [u8; 5],
 }
 
