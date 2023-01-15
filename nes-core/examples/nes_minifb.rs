@@ -1,10 +1,10 @@
 use std::collections::VecDeque;
 use std::error::Error;
 
-use nes::cartridge::Cartridge;
-use nes::controller::Controller;
-use nes::screen::Screen;
-use nes::{Nes, SCREEN_HEIGHT, SCREEN_WIDTH};
+use nes_core::cartridge::Cartridge;
+use nes_core::controller::Controller;
+use nes_core::screen::Screen;
+use nes_core::{Nes, SCREEN_HEIGHT, SCREEN_WIDTH};
 
 use minifb::{Key, Scale, Window, WindowOptions};
 
@@ -13,7 +13,7 @@ fn game(file_name: &str) -> Result<Nes, Box<dyn Error>> {
     Ok(nes)
 }
 
-fn update_buffer(buffer: &mut [u32], screen: &Screen<256, 240>) {
+fn draw_screen(buffer: &mut [u32], screen: &Screen<256, 240>) {
     screen.flatten().enumerate().for_each(|(i, pixel)| {
         let val: u32 = ((pixel.r as u32) << 16) | ((pixel.g as u32) << 8) | (pixel.b as u32);
         buffer[i] = val;
@@ -68,7 +68,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         update_controllers(&mut window, &mut nes);
-        update_buffer(&mut buffer, nes.next_frame());
+        draw_screen(&mut buffer, nes.next_frame());
 
         let fps = 1.0 / time.elapsed().unwrap().as_secs_f64();
         fps_avg.add(fps);

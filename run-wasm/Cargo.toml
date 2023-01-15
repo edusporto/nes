@@ -1,0 +1,20 @@
+# Allows the workspace to be compiled to WebAssembly (Wasm).
+# 
+# To compile and run the frontend into Wasm, run:
+# ```bash
+# cargo run-wasm --release --package nes-frontend
+# ```
+# 
+# To only build the Wasm frontend, run:
+# ```bash
+# cargo run-wasm --release --build-only --package nes-frontend
+# ```
+# The build files will be stored on `./target/wasm-examples/minimal-web/`.
+
+[package]
+name = "run-wasm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cargo-run-wasm = "0.3"

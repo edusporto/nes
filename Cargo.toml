@@ -1,25 +1,9 @@
-[package]
-name = "nes"
-version = "0.1.0"
-authors = ["Eduardo Sandalo Porto <eduardosandaloporto@gmail.com>"]
-edition = "2021"
+[workspace]
 
-[dependencies]
-bitflags = "1.3"
-num-traits = "0.2"
-num-derive = "0.3"
-binread = "2.2"
-bitfield = "0.14"
-itertools = "0.10"
-thiserror = "1.0"
+members = [
+    "nes-core",
+    "nes-frontend",
+    "run-wasm"
+]
 
-# Required only by the binary.
-# The current front-end to the NES will probably be changed later.
-minifb = { version = "0.23", optional = false }
-
-[dev-dependencies]
-criterion = "0.4"
-
-[[bench]]
-name = "fps"
-harness = false
+resolver = "2" # needed due to bug in wgpu
