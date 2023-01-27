@@ -1,5 +1,5 @@
-use std::error::Error;
 use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 
 use log::error;
 use pixels::{Pixels, SurfaceTexture};
@@ -9,14 +9,14 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
 
-use nes_core::cartridge::Cartridge;
-use nes_core::controller::Controller;
 use nes_core::screen::{NES_HEIGHT, NES_WIDTH};
-use nes_core::Nes;
-
 use nes_frontend::arch::{native::NativeArch, wasm::WasmArch, TargetArch};
+use nes_frontend::game::Game;
 
 const NES_SIZE: LogicalSize<u32> = LogicalSize::new(NES_WIDTH as u32, NES_HEIGHT as u32);
+
+const FPS: u64 = 60;
+const FRAME_TIME: Duration = Duration::from_micros(1_000_000 / FPS);
 
 fn main() {
     // TODO: find if there is a way to run these functions for all
@@ -70,20 +70,28 @@ async fn run() {
         let window = Arc::clone(&window);
         std::thread::spawn(move || {
             let mut game = Game::start_from_bytes(cart).expect("Couldn't load game");
+            let mut time = Instant::now();
             loop {
-                {
-                    game.update_controllers(&input.read().unwrap());
-                    game.update();
-                    game.draw(pixels.write().unwrap().get_frame_mut());
-                    window.request_redraw();
+                while time.elapsed() < FRAME_TIME {}
 
-                }
-                std::thread::sleep(std::time::Duration::from_millis(16));
+                time = Instant::now();
+                game.update_controllers(&input.read().unwrap());
+                game.update();
+                game.draw(pixels.write().unwrap().get_frame_mut());
+                window.request_redraw();
+
+                // std::thread::sleep(FRAME_TIME.mul_f32(0.8));
             }
         });
     }
 
+    let mut fps_avg = MovingAvg::new(5);
+    let mut time = Instant::now();
+
     event_loop.run(move |event, _, control_flow| {
+        control_flow.set_wait();
+        // control_flow.set_poll();
+
         // Draw the current frame
         if let Event::RedrawRequested(_) = event {
             // game.lock().unwrap().draw(pixels.get_frame_mut());
@@ -92,6 +100,10 @@ async fn run() {
                 *control_flow = ControlFlow::Exit;
                 return;
             }
+
+            fps_avg.add(1.0 / time.elapsed().as_secs_f64());
+            time = Instant::now();
+            window.set_title(&format!("NES (FPS: {:.1})", fps_avg.avg()));
         }
 
         let mut input = input.write().unwrap();
@@ -107,7 +119,11 @@ async fn run() {
 
             // Resize the window
             if let Some(size) = input.window_resized() {
-                if let Err(err) = pixels.write().unwrap().resize_surface(size.width, size.height) {
+                if let Err(err) = pixels
+                    .write()
+                    .unwrap()
+                    .resize_surface(size.width, size.height)
+                {
                     error!("pixels.resize_surface() failed: {err}");
                     *control_flow = ControlFlow::Exit;
                     return;
@@ -121,62 +137,28 @@ async fn run() {
     });
 }
 
-struct Game(Nes);
+struct MovingAvg {
+    window: usize,
+    data: std::collections::VecDeque<f64>,
+}
 
-#[allow(dead_code)]
-impl Game {
-    pub fn start(file_name: &str) -> Result<Game, Box<dyn Error>> {
-        let nes = Nes::new(Cartridge::from_file(file_name)?);
-        Ok(Game(nes))
+impl MovingAvg {
+    fn new(window: usize) -> Self {
+        MovingAvg {
+            window,
+            data: Default::default(),
+        }
     }
 
-    pub fn start_from_bytes(rom: &[u8]) -> Result<Game, Box<dyn Error>> {
-        let nes = Nes::new(Cartridge::from_bytes(rom)?);
-        Ok(Game(nes))
+    fn add(&mut self, value: f64) {
+        if self.data.len() == self.window {
+            self.data.pop_front();
+        }
+
+        self.data.push_back(value);
     }
 
-    pub fn draw(&self, frame: &mut [u8]) {
-        frame
-            .chunks_exact_mut(4)
-            .zip(self.0.screen().flatten())
-            .for_each(|(pixel_frame, pixel)| {
-                pixel_frame.copy_from_slice(&[pixel.r, pixel.g, pixel.b, 0xFF]);
-            });
-    }
-
-    pub fn update(&mut self) {
-        self.0.next_frame();
-    }
-
-    pub fn update_controllers(&mut self, input: &WinitInputHelper) {
-        let [controller1, controller2] = self.0.mut_controllers();
-        *controller1 = Controller::empty();
-        *controller2 = Controller::empty();
-
-        // TODO: do this better somehow
-        if input.key_held(VirtualKeyCode::Up) {
-            controller1.set(Controller::UP, true);
-        }
-        if input.key_held(VirtualKeyCode::Right) {
-            controller1.set(Controller::RIGHT, true);
-        }
-        if input.key_held(VirtualKeyCode::Down) {
-            controller1.set(Controller::DOWN, true);
-        }
-        if input.key_held(VirtualKeyCode::Left) {
-            controller1.set(Controller::LEFT, true);
-        }
-        if input.key_held(VirtualKeyCode::Z) {
-            controller1.set(Controller::BUTTON_A, true);
-        }
-        if input.key_held(VirtualKeyCode::X) {
-            controller1.set(Controller::BUTTON_B, true);
-        }
-        if input.key_held(VirtualKeyCode::Space) {
-            controller1.set(Controller::START, true);
-        }
-        if input.key_held(VirtualKeyCode::Back) {
-            controller1.set(Controller::SELECT, true);
-        }
+    fn avg(&self) -> f64 {
+        self.data.iter().sum::<f64>() / self.data.len() as f64
     }
 }
