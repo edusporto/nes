@@ -72,6 +72,10 @@ async fn run() {
             let mut game = Game::start_from_bytes(cart).expect("Couldn't load game");
             let mut time = Instant::now();
             loop {
+                if time.elapsed() < FRAME_TIME {
+                    std::thread::sleep(FRAME_TIME - time.elapsed());
+                }
+
                 while time.elapsed() < FRAME_TIME {}
 
                 time = Instant::now();
