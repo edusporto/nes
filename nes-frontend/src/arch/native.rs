@@ -21,5 +21,5 @@ impl TargetArch for NativeArch {
     }
 
     #[allow(unused_variables, unreachable_code)]
-    fn prepare_window(window: &std::rc::Rc<winit::window::Window>) {}
+    fn prepare_window(window: &std::sync::Arc<winit::window::Window>) {}
 }

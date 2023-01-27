@@ -1,5 +1,5 @@
 use std::future::Future;
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[allow(unused_imports)]
 use winit::dpi::LogicalSize;
@@ -29,7 +29,7 @@ impl TargetArch for WasmArch {
     }
 
     #[allow(unused_variables, unreachable_code)]
-    fn prepare_window(window: &Rc<Window>) {
+    fn prepare_window(window: &Arc<Window>) {
         #[cfg(target_arch = "wasm32")]
         {
             use wasm_bindgen::JsCast;
@@ -44,7 +44,7 @@ impl TargetArch for WasmArch {
                 )
             };
 
-            let window = Rc::clone(&window);
+            let window = Arc::clone(&window);
 
             // Initialize winit window with current dimensions of browser client
             window.set_inner_size(get_window_size());

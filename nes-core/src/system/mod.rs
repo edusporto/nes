@@ -6,7 +6,7 @@ pub(crate) mod ram;
 
 use crate::cartridge::Cartridge;
 use crate::controller::Controller;
-use crate::screen::Screen;
+use crate::screen::NesScreen;
 use cpu::Cpu;
 
 #[derive(Clone, Debug, Default)]
@@ -29,11 +29,11 @@ impl System {
         system
     }
 
-    pub fn screen(&self) -> &Screen<256, 240> {
+    pub fn screen(&self) -> &NesScreen {
         self.cpu.bus.ppu.screen()
     }
 
-    pub fn next_frame(&mut self) -> &Screen<256, 240> {
+    pub fn next_frame(&mut self) -> &NesScreen {
         while !self.cpu.bus.ppu.screen_ready() {
             self.clock();
         }

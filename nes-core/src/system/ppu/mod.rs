@@ -12,7 +12,7 @@ use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
 use crate::cartridge::{Cartridge, CartridgeMirror};
-use crate::screen::{pixel, Screen};
+use crate::screen::{pixel, NesScreen};
 use crate::system::ram::{AFTER_RAM_END, RAM_ADDR_END, RAM_ADDR_START};
 
 use oam::*;
@@ -37,7 +37,7 @@ pub enum PPUReadWriteFlags {
 
 #[derive(Clone, Debug)]
 pub struct Ppu {
-    screen: Screen<256, 240>,
+    screen: NesScreen,
     frame_complete: bool,
 
     name_table: [[u8; 1024]; 2],
@@ -80,7 +80,7 @@ pub struct Ppu {
 impl Ppu {
     pub fn new() -> Ppu {
         Ppu {
-            screen: Screen::default(),
+            screen: NesScreen::default(),
             frame_complete: false,
             name_table: [[0; 1024]; 2],
             pattern_table: [[0; 4096]; 2],
@@ -119,13 +119,14 @@ impl Ppu {
         self.tram_addr = RamAddrData(0);
     }
 
-    pub fn screen(&self) -> &Screen<256, 240> {
+    pub fn screen(&self) -> &NesScreen {
         &self.screen
     }
 
     pub fn screen_ready(&mut self) -> bool {
         if self.frame_complete {
             self.frame_complete = false;
+            self.screen.switch_buffer();
             true
         } else {
             false

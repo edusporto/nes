@@ -2,7 +2,7 @@ pub mod native;
 pub mod wasm;
 
 use std::future::Future;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use winit::window::Window;
 
@@ -18,5 +18,5 @@ pub trait TargetArch {
     /// Should return `None` if called on the wrong architecture.
     fn start_run<F: Future<Output = ()> + 'static>(fut: F) -> Option<F::Output>;
     /// Prepares structures related to windowing.
-    fn prepare_window(window: &Rc<Window>);
+    fn prepare_window(window: &Arc<Window>);
 }

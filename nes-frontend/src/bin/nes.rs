@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 
 use log::error;
 use pixels::{Pixels, SurfaceTexture};
@@ -11,9 +11,12 @@ use winit_input_helper::WinitInputHelper;
 
 use nes_core::cartridge::Cartridge;
 use nes_core::controller::Controller;
-use nes_core::{Nes, SCREEN_HEIGHT, SCREEN_WIDTH};
+use nes_core::screen::{NES_HEIGHT, NES_WIDTH};
+use nes_core::Nes;
 
 use nes_frontend::arch::{native::NativeArch, wasm::WasmArch, TargetArch};
+
+const NES_SIZE: LogicalSize<u32> = LogicalSize::new(NES_WIDTH as u32, NES_HEIGHT as u32);
 
 fn main() {
     // TODO: find if there is a way to run these functions for all
@@ -33,48 +36,65 @@ async fn run() {
     //     .nth(1)
     //     .expect("Missing the file name to the desired ROM as argument.");
     // let file_name = "games/Super Mario Bros.nes";
-    let cart = include_bytes!("../../../games/nestest.nes");
+    let cart = include_bytes!("../../../games/Super Mario Bros.nes");
 
     let event_loop = EventLoop::new();
-    let window = {
-        let size = LogicalSize::new(SCREEN_WIDTH as f64, SCREEN_HEIGHT as f64);
-        WindowBuilder::new()
-            .with_title("NES")
-            .with_inner_size(size)
-            .with_min_inner_size(size)
-            .build(&event_loop)
-            .expect("WindowBuilder error")
-    };
+    let window = WindowBuilder::new()
+        .with_title("NES")
+        .with_inner_size(NES_SIZE)
+        .with_min_inner_size(NES_SIZE)
+        .build(&event_loop)
+        .expect("WindowBuilder error");
 
-    let window = Rc::new(window);
+    let window = Arc::new(window);
 
     WasmArch::prepare_window(&window);
     NativeArch::prepare_window(&window);
 
-    let mut input = WinitInputHelper::new();
-    let mut pixels = {
+    let input = Arc::new(RwLock::new(WinitInputHelper::new()));
+    let pixels = Arc::new(RwLock::new({
         let window_size = window.inner_size();
         let surface_texture =
             SurfaceTexture::new(window_size.width, window_size.height, window.as_ref());
-        Pixels::new_async(SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32, surface_texture)
+        Pixels::new_async(NES_WIDTH as u32, NES_HEIGHT as u32, surface_texture)
             .await
             .expect("Pixels error")
-    };
+    }));
 
     // let mut game = Game::start(&file_name).expect(&format!("Couldn't load game in {}", file_name));
-    let mut game = Game::start_from_raw(cart).expect(&format!("Couldn't load game"));
+    // let game = Game::start_from_bytes(cart).expect("Couldn't load game");
+
+    {
+        let input = Arc::clone(&input);
+        let pixels = Arc::clone(&pixels);
+        let window = Arc::clone(&window);
+        std::thread::spawn(move || {
+            let mut game = Game::start_from_bytes(cart).expect("Couldn't load game");
+            loop {
+                {
+                    game.update_controllers(&input.read().unwrap());
+                    game.update();
+                    game.draw(pixels.write().unwrap().get_frame_mut());
+                    window.request_redraw();
+
+                }
+                std::thread::sleep(std::time::Duration::from_millis(16));
+            }
+        });
+    }
 
     event_loop.run(move |event, _, control_flow| {
         // Draw the current frame
         if let Event::RedrawRequested(_) = event {
-            game.draw(pixels.get_frame_mut());
-            if let Err(err) = pixels.render() {
+            // game.lock().unwrap().draw(pixels.get_frame_mut());
+            if let Err(err) = pixels.read().unwrap().render() {
                 error!("pixels.render() failed: {err}");
                 *control_flow = ControlFlow::Exit;
                 return;
             }
         }
 
+        let mut input = input.write().unwrap();
         // Handle input events
         if input.update(&event) {
             // Close events
@@ -83,11 +103,11 @@ async fn run() {
                 return;
             }
 
-            game.update_controllers(&input);
+            // game.write().unwrap().update_controllers(&input);
 
             // Resize the window
             if let Some(size) = input.window_resized() {
-                if let Err(err) = pixels.resize_surface(size.width, size.height) {
+                if let Err(err) = pixels.write().unwrap().resize_surface(size.width, size.height) {
                     error!("pixels.resize_surface() failed: {err}");
                     *control_flow = ControlFlow::Exit;
                     return;
@@ -95,26 +115,27 @@ async fn run() {
             }
 
             // Update internal state and request a redraw
-            game.update();
-            window.request_redraw();
+            // game.update();
+            // window.request_redraw();
         }
     });
 }
 
 struct Game(Nes);
 
+#[allow(dead_code)]
 impl Game {
-    fn start(file_name: &str) -> Result<Game, Box<dyn Error>> {
+    pub fn start(file_name: &str) -> Result<Game, Box<dyn Error>> {
         let nes = Nes::new(Cartridge::from_file(file_name)?);
         Ok(Game(nes))
     }
 
-    fn start_from_raw(rom: &[u8]) -> Result<Game, Box<dyn Error>> {
+    pub fn start_from_bytes(rom: &[u8]) -> Result<Game, Box<dyn Error>> {
         let nes = Nes::new(Cartridge::from_bytes(rom)?);
         Ok(Game(nes))
     }
 
-    fn draw(&self, frame: &mut [u8]) {
+    pub fn draw(&self, frame: &mut [u8]) {
         frame
             .chunks_exact_mut(4)
             .zip(self.0.screen().flatten())
@@ -123,19 +144,19 @@ impl Game {
             });
     }
 
-    fn update(&mut self) {
+    pub fn update(&mut self) {
         self.0.next_frame();
     }
 
-    fn update_controllers(&mut self, input: &WinitInputHelper) {
+    pub fn update_controllers(&mut self, input: &WinitInputHelper) {
         let [controller1, controller2] = self.0.mut_controllers();
         *controller1 = Controller::empty();
         *controller2 = Controller::empty();
 
         // TODO: do this better somehow
         if input.key_held(VirtualKeyCode::Up) {
-            controller1.set(Controller::UP, true)
-        };
+            controller1.set(Controller::UP, true);
+        }
         if input.key_held(VirtualKeyCode::Right) {
             controller1.set(Controller::RIGHT, true);
         }

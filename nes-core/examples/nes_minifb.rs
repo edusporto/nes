@@ -3,8 +3,8 @@ use std::error::Error;
 
 use nes_core::cartridge::Cartridge;
 use nes_core::controller::Controller;
-use nes_core::screen::Screen;
-use nes_core::{Nes, SCREEN_HEIGHT, SCREEN_WIDTH};
+use nes_core::screen::{NesScreen, NES_HEIGHT, NES_WIDTH};
+use nes_core::Nes;
 
 use minifb::{Key, Scale, Window, WindowOptions};
 
@@ -13,7 +13,7 @@ fn game(file_name: &str) -> Result<Nes, Box<dyn Error>> {
     Ok(nes)
 }
 
-fn draw_screen(buffer: &mut [u32], screen: &Screen<256, 240>) {
+fn draw_screen(buffer: &mut [u32], screen: &NesScreen) {
     screen.flatten().enumerate().for_each(|(i, pixel)| {
         let val: u32 = ((pixel.r as u32) << 16) | ((pixel.g as u32) << 8) | (pixel.b as u32);
         buffer[i] = val;
@@ -45,12 +45,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut nes = game(&file_name)?;
 
-    let mut buffer: Vec<u32> = vec![0; SCREEN_WIDTH * SCREEN_HEIGHT];
+    let mut buffer: Vec<u32> = vec![0; NES_WIDTH * NES_HEIGHT];
 
     let mut window = Window::new(
         "NES emulator",
-        SCREEN_WIDTH,
-        SCREEN_HEIGHT,
+        NES_WIDTH,
+        NES_HEIGHT,
         WindowOptions {
             scale: Scale::X4,
             ..WindowOptions::default()
@@ -77,7 +77,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         window.set_title(&format!("NES (FPS: {:.1})", fps_avg.avg()));
 
         window
-            .update_with_buffer(&buffer, SCREEN_WIDTH, SCREEN_HEIGHT)
+            .update_with_buffer(&buffer, NES_WIDTH, NES_HEIGHT)
             .unwrap();
     }
 

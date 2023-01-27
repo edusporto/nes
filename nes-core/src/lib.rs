@@ -6,11 +6,8 @@ pub(crate) mod system;
 
 use crate::cartridge::Cartridge;
 use crate::controller::Controller;
-use crate::screen::Screen;
+use crate::screen::NesScreen;
 use system::System;
-
-pub const SCREEN_WIDTH: usize = 256;
-pub const SCREEN_HEIGHT: usize = 240;
 
 #[derive(Clone, Debug, Default)]
 pub struct Nes {
@@ -24,11 +21,11 @@ impl Nes {
         }
     }
 
-    pub fn screen(&self) -> &Screen<256, 240> {
+    pub fn screen(&self) -> &NesScreen {
         self.system.screen()
     }
 
-    pub fn next_frame(&mut self) -> &Screen<256, 240> {
+    pub fn next_frame(&mut self) -> &NesScreen {
         self.system.next_frame()
     }
 
