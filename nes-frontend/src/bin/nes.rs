@@ -5,7 +5,7 @@ use log::error;
 use pixels::{Pixels, SurfaceTexture};
 use winit::dpi::LogicalSize;
 use winit::event::{Event, VirtualKeyCode};
-use winit::event_loop::{ControlFlow, EventLoop};
+use winit::event_loop::{ControlFlow, EventLoopBuilder};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
 
@@ -17,6 +17,11 @@ const NES_SIZE: LogicalSize<u32> = LogicalSize::new(NES_WIDTH as u32, NES_HEIGHT
 
 const FPS: u64 = 60;
 const FRAME_TIME: Duration = Duration::from_micros(1_000_000 / FPS);
+
+#[derive(Debug, Copy, Clone)]
+enum CustomEvents {
+    RequestRedraw,
+}
 
 fn main() {
     // TODO: find if there is a way to run these functions for all
@@ -38,7 +43,7 @@ async fn run() {
     // let file_name = "games/Super Mario Bros.nes";
     let cart = include_bytes!("../../../games/Super Mario Bros.nes");
 
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoopBuilder::<CustomEvents>::with_user_event().build();
     let window = WindowBuilder::new()
         .with_title("NES")
         .with_inner_size(NES_SIZE)
@@ -67,7 +72,7 @@ async fn run() {
     {
         let input = Arc::clone(&input);
         let pixels = Arc::clone(&pixels);
-        let window = Arc::clone(&window);
+        let proxy = event_loop.create_proxy();
         std::thread::spawn(move || {
             let mut game = Game::start_from_bytes(cart).expect("Couldn't load game");
             let mut time = Instant::now();
@@ -82,9 +87,7 @@ async fn run() {
                 game.update_controllers(&input.read().unwrap());
                 game.update();
                 game.draw(pixels.write().unwrap().get_frame_mut());
-                window.request_redraw();
-
-                // std::thread::sleep(FRAME_TIME.mul_f32(0.8));
+                proxy.send_event(CustomEvents::RequestRedraw).unwrap();
             }
         });
     }
@@ -94,7 +97,10 @@ async fn run() {
 
     event_loop.run(move |event, _, control_flow| {
         control_flow.set_wait();
-        // control_flow.set_poll();
+
+        if let Event::UserEvent(CustomEvents::RequestRedraw) = event {
+            window.request_redraw();
+        }
 
         // Draw the current frame
         if let Event::RedrawRequested(_) = event {
