@@ -299,14 +299,16 @@ impl Ppu {
                                     (u16::from(self.control.contains(ControlReg::PATTERN_SPRITE))
                                         << 12)
                                         | ((sprite.tile_id as u16) << 4)
-                                        | (self.scanline - sprite.y as i16) as u16;
+                                        | (self.scanline.wrapping_sub(sprite.y as i16)) as u16;
                             } else {
                                 // Sprite is flipped vertically
                                 sprite_pattern_addr_low =
                                     (u16::from(self.control.contains(ControlReg::PATTERN_SPRITE))
                                         << 12)
                                         | ((sprite.tile_id as u16) << 4)
-                                        | (7 - (self.scanline - sprite.y as i16) as u16);
+                                        | (7_i16.wrapping_sub(
+                                            self.scanline.wrapping_sub(sprite.y as i16),
+                                        ) as u16);
                             }
                         } else {
                             // 8x16 sprite mode
@@ -317,13 +319,15 @@ impl Ppu {
                                     sprite_pattern_addr_low = ((sprite.tile_id as u16 & 0x01)
                                         << 12)
                                         | ((sprite.tile_id as u16 & 0xFE) << 4)
-                                        | ((self.scanline - sprite.y as i16) as u16 & 0x07);
+                                        | ((self.scanline.wrapping_sub(sprite.y as i16)) as u16
+                                            & 0x07);
                                 } else {
                                     // Reading bottom half tile
                                     sprite_pattern_addr_low = ((sprite.tile_id as u16 & 0x01)
                                         << 12)
                                         | (((sprite.tile_id as u16 & 0xFE) + 1) << 4)
-                                        | ((self.scanline - sprite.y as i16) as u16 & 0x07);
+                                        | ((self.scanline.wrapping_sub(sprite.y as i16)) as u16
+                                            & 0x07);
                                 }
                             } else {
                                 // Sprite is flipped vertically
@@ -332,13 +336,19 @@ impl Ppu {
                                     sprite_pattern_addr_low = ((sprite.tile_id as u16 & 0x01)
                                         << 12)
                                         | (((sprite.tile_id as u16 & 0xFE) + 1) << 4)
-                                        | ((7 - (self.scanline - sprite.y as i16) as u16) & 0x07);
+                                        | ((7_i16.wrapping_sub(
+                                            self.scanline.wrapping_sub(sprite.y as i16),
+                                        ) as u16)
+                                            & 0x07);
                                 } else {
                                     // Reading bottom half tile
                                     sprite_pattern_addr_low = ((sprite.tile_id as u16 & 0x01)
                                         << 12)
                                         | ((sprite.tile_id as u16 & 0xFE) << 4)
-                                        | ((7 - (self.scanline - sprite.y as i16) as u16) & 0x07);
+                                        | ((7_i16.wrapping_sub(
+                                            self.scanline.wrapping_sub(sprite.y as i16),
+                                        ) as u16)
+                                            & 0x07);
                                 }
                             }
                         }
