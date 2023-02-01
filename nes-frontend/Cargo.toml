@@ -12,6 +12,7 @@ log = "0.4"
 pixels = "0.11"
 winit = "0.27"
 winit_input_helper = "0.13"
+spin_sleep = "1.1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1"

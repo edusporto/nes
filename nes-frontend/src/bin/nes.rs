@@ -78,7 +78,7 @@ async fn run() {
             let mut time = Instant::now();
             loop {
                 if time.elapsed() < FRAME_TIME {
-                    std::thread::sleep(FRAME_TIME - time.elapsed());
+                    spin_sleep::sleep(FRAME_TIME - time.elapsed());
                 }
 
                 while time.elapsed() < FRAME_TIME {}
