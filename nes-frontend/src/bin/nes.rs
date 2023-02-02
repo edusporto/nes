@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
-use std::time::{Duration, Instant};
 
+use instant::{Duration, Instant};
 use log::error;
 use pixels::{Pixels, SurfaceTexture};
 use winit::dpi::LogicalSize;
@@ -10,7 +10,7 @@ use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
 
 use nes_core::screen::{NES_HEIGHT, NES_WIDTH};
-use nes_frontend::arch::{native::NativeArch, wasm::WasmArch, TargetArch};
+use nes_frontend::arch;
 use nes_frontend::game::Game;
 
 const NES_SIZE: LogicalSize<u32> = LogicalSize::new(NES_WIDTH as u32, NES_HEIGHT as u32);
@@ -24,15 +24,17 @@ enum CustomEvents {
 }
 
 fn main() {
-    // TODO: find if there is a way to run these functions for all
-    // implementations of the trait
-
-    WasmArch::prepare_env();
-    WasmArch::start_run(run());
-
-    NativeArch::prepare_env();
-    NativeArch::start_run(run());
+    arch::prepare_env();
+    async_std::task::block_on(run());
 }
+
+// fn main() {
+//     WasmArch::prepare_env();
+//     WasmArch::start_run(run());
+
+//     NativeArch::prepare_env();
+//     NativeArch::start_run(run());
+// }
 
 async fn run() {
     // TODO: do this better somehow
@@ -53,8 +55,7 @@ async fn run() {
 
     let window = Arc::new(window);
 
-    WasmArch::prepare_window(&window);
-    NativeArch::prepare_window(&window);
+    arch::prepare_window(&window);
 
     let input = Arc::new(RwLock::new(WinitInputHelper::new()));
     let pixels = Arc::new(RwLock::new({
@@ -73,12 +74,16 @@ async fn run() {
         let input = Arc::clone(&input);
         let pixels = Arc::clone(&pixels);
         let proxy = event_loop.create_proxy();
-        std::thread::spawn(move || {
+        // std::thread::spawn(move || {
+        async_std::task::spawn_local(async move {
             let mut game = Game::start_from_bytes(cart).expect("Couldn't load game");
             let mut time = Instant::now();
             loop {
                 if time.elapsed() < FRAME_TIME {
-                    spin_sleep::sleep(FRAME_TIME - time.elapsed());
+                    // spin_sleep::sleep(FRAME_TIME - time.elapsed());
+                    // tokio::time::sleep(FRAME_TIME - time.elapsed()).await;
+                    // async_std::task::sleep(FRAME_TIME - time.elapsed()).await
+                    arch::sleep(FRAME_TIME - time.elapsed()).await;
                 }
 
                 while time.elapsed() < FRAME_TIME {}
@@ -95,7 +100,7 @@ async fn run() {
     let mut fps_avg = MovingAvg::new(5);
     let mut time = Instant::now();
 
-    event_loop.run(move |event, _, control_flow| {
+    event_loop.run(move |event, _event_loop, control_flow| {
         control_flow.set_wait();
 
         if let Event::UserEvent(CustomEvents::RequestRedraw) = event {

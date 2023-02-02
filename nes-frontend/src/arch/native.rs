@@ -1,25 +1,16 @@
-use super::TargetArch;
+#![cfg(not(target_arch = "wasm32"))]
 
-pub struct NativeArch;
+pub fn prepare_env() {
+    env_logger::init();
+}
 
-impl TargetArch for NativeArch {
-    fn prepare_env() {
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            env_logger::init();
-        }
-    }
+pub fn start_run<F: std::future::Future>(fut: F) -> Option<F::Output> {
+    return Some(pollster::block_on(fut));
+}
 
-    #[allow(unused_variables, unreachable_code)]
-    fn start_run<F: std::future::Future>(fut: F) -> Option<F::Output> {
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            return Some(pollster::block_on(fut));
-        }
+pub fn prepare_window(_window: &std::sync::Arc<winit::window::Window>) {}
 
-        None
-    }
-
-    #[allow(unused_variables, unreachable_code)]
-    fn prepare_window(window: &std::sync::Arc<winit::window::Window>) {}
+pub async fn sleep(duration: instant::Duration) {
+    // spin_sleep::sleep(duration);
+    async_std::task::sleep(duration).await
 }
