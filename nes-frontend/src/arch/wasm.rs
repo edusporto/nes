@@ -6,10 +6,6 @@ use std::sync::Arc;
 use winit::dpi::LogicalSize;
 use winit::window::Window;
 
-use super::TargetArch;
-
-pub struct WasmArch;
-
 pub fn prepare_env() {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     console_log::init_with_level(log::Level::Trace).expect("error initializing logger");
@@ -62,5 +58,5 @@ pub fn prepare_window(window: &Arc<Window>) {
 }
 
 pub async fn sleep(duration: instant::Duration) {
-    todo!()
+    wasm_timer::Delay::new(duration).await.unwrap();
 }

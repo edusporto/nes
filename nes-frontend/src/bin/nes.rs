@@ -83,7 +83,7 @@ async fn run() {
                     // spin_sleep::sleep(FRAME_TIME - time.elapsed());
                     // tokio::time::sleep(FRAME_TIME - time.elapsed()).await;
                     // async_std::task::sleep(FRAME_TIME - time.elapsed()).await
-                    arch::sleep(FRAME_TIME - time.elapsed()).await;
+                    arch::sleep(FRAME_TIME.saturating_sub(time.elapsed())).await;
                 }
 
                 while time.elapsed() < FRAME_TIME {}
