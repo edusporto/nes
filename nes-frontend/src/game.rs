@@ -3,64 +3,79 @@ use std::error::Error;
 use nes_core::cartridge::Cartridge;
 use nes_core::controller::Controller;
 use nes_core::Nes;
+use pixels::Pixels;
 use winit::event::VirtualKeyCode;
 use winit_input_helper::WinitInputHelper;
 
-pub struct Game(Nes);
+pub struct Game {
+    nes: Nes,
+    pub input: WinitInputHelper,
+    pub pixels: Pixels,
+}
 
 #[allow(dead_code)]
 impl Game {
-    pub fn start(file_name: &str) -> Result<Game, Box<dyn Error>> {
+    pub fn start(
+        file_name: &str,
+        input: WinitInputHelper,
+        pixels: Pixels,
+    ) -> Result<Game, Box<dyn Error>> {
         let nes = Nes::new(Cartridge::from_file(file_name)?);
-        Ok(Game(nes))
+        Ok(Game { nes, input, pixels })
     }
 
-    pub fn start_from_bytes(rom: &[u8]) -> Result<Game, Box<dyn Error>> {
+    pub fn start_from_bytes(
+        rom: &[u8],
+        input: WinitInputHelper,
+        pixels: Pixels,
+    ) -> Result<Game, Box<dyn Error>> {
         let nes = Nes::new(Cartridge::from_bytes(rom)?);
-        Ok(Game(nes))
+        Ok(Game { nes, input, pixels })
     }
 
-    pub fn draw(&self, frame: &mut [u8]) {
-        frame
+    pub fn draw(&mut self) {
+        self.pixels
+            .get_frame_mut()
             .chunks_exact_mut(4)
-            .zip(self.0.screen().flatten())
+            .zip(self.nes.screen().flatten())
             .for_each(|(pixel_frame, pixel)| {
                 pixel_frame.copy_from_slice(&[pixel.r, pixel.g, pixel.b, 0xFF]);
             });
     }
 
     pub fn update(&mut self) {
-        self.0.next_frame();
+        self.nes.next_frame();
+        self.update_controllers();
     }
 
-    pub fn update_controllers(&mut self, input: &WinitInputHelper) {
-        let [controller1, controller2] = self.0.mut_controllers();
+    pub fn update_controllers(&mut self) {
+        let [controller1, controller2] = self.nes.mut_controllers();
         *controller1 = Controller::empty();
         *controller2 = Controller::empty();
 
         // TODO: do this better somehow
-        if input.key_held(VirtualKeyCode::Up) {
+        if self.input.key_held(VirtualKeyCode::Up) {
             controller1.set(Controller::UP, true);
         }
-        if input.key_held(VirtualKeyCode::Right) {
+        if self.input.key_held(VirtualKeyCode::Right) {
             controller1.set(Controller::RIGHT, true);
         }
-        if input.key_held(VirtualKeyCode::Down) {
+        if self.input.key_held(VirtualKeyCode::Down) {
             controller1.set(Controller::DOWN, true);
         }
-        if input.key_held(VirtualKeyCode::Left) {
+        if self.input.key_held(VirtualKeyCode::Left) {
             controller1.set(Controller::LEFT, true);
         }
-        if input.key_held(VirtualKeyCode::Z) {
+        if self.input.key_held(VirtualKeyCode::Z) {
             controller1.set(Controller::BUTTON_A, true);
         }
-        if input.key_held(VirtualKeyCode::X) {
+        if self.input.key_held(VirtualKeyCode::X) {
             controller1.set(Controller::BUTTON_B, true);
         }
-        if input.key_held(VirtualKeyCode::Space) {
+        if self.input.key_held(VirtualKeyCode::Space) {
             controller1.set(Controller::START, true);
         }
-        if input.key_held(VirtualKeyCode::Back) {
+        if self.input.key_held(VirtualKeyCode::Back) {
             controller1.set(Controller::SELECT, true);
         }
     }
