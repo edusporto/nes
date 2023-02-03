@@ -11,8 +11,8 @@ pub fn prepare_env() {
     console_log::init_with_level(log::Level::Trace).expect("error initializing logger");
 }
 
-pub fn start_run<F: Future<Output = ()> + 'static>(fut: F) -> Option<F::Output> {
-    return Some(wasm_bindgen_futures::spawn_local(fut));
+pub fn start_run<F: Future<Output = ()> + 'static>(fut: F) -> F::Output {
+    wasm_bindgen_futures::spawn_local(fut)
 }
 
 pub fn prepare_window(window: &Arc<Window>) {
