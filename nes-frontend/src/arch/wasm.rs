@@ -56,7 +56,3 @@ pub fn prepare_window(window: &Arc<Window>) {
         .unwrap();
     closure.forget();
 }
-
-pub async fn sleep(duration: instant::Duration) {
-    wasm_timer::Delay::new(duration).await.unwrap();
-}

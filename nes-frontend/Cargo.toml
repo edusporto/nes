@@ -12,9 +12,12 @@ log = "0.4"
 pixels = "0.11"
 winit = "0.27"
 winit_input_helper = "0.13"
-spin_sleep = "1.1"
 instant = "0.1"
-game-loop = { version = "0.10", features = ["winit"] }
+
+# I need https://github.com/tuzz/game-loop/pull/10 to be merged to use the `game-loop`
+# library in this project, so for the while, I'll be using an alternative repository.
+game-loop = { git = "https://github.com/edusporto/game-loop", features = ["winit"] }
+# game-loop = { version = "0.10", features = ["winit"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1"
@@ -22,7 +25,6 @@ console_log = "0.2"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = ["GpuTextureFormat"] }
-wasm-timer = "0.2"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 env_logger = "0.10"

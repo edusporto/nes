@@ -9,8 +9,3 @@ pub fn start_run<F: std::future::Future>(fut: F) -> F::Output {
 }
 
 pub fn prepare_window(_window: &std::sync::Arc<winit::window::Window>) {}
-
-pub fn sleep(duration: instant::Duration) {
-    spin_sleep::sleep(duration);
-    // async_std::task::block_on(async { async_std::task::sleep(duration).await });
-}
