@@ -1,5 +1,8 @@
+#![windows_subsystem = "windows"]
+
 use std::sync::Arc;
 
+use instant::{Duration, Instant};
 use log::error;
 use pixels::{Pixels, SurfaceTexture};
 use winit::dpi::LogicalSize;
@@ -14,6 +17,7 @@ use nes_frontend::game::Game;
 
 const NES_SIZE: LogicalSize<u32> = LogicalSize::new(NES_WIDTH as u32, NES_HEIGHT as u32);
 const FPS: u32 = 60;
+const FRAME_TIME: Duration = Duration::from_micros(1_000_000 / FPS as u64);
 
 fn main() {
     arch::prepare_env();
@@ -54,6 +58,7 @@ async fn run() {
     let game = Game::start_from_bytes(cart, input, pixels).expect("Couldn't load game");
 
     let mut fps = FpsCounter::new(10);
+    let mut time = Instant::now();
 
     game_loop::game_loop(
         event_loop,
@@ -62,10 +67,19 @@ async fn run() {
         FPS,
         0.1,
         |g| {
+            // Update function
             g.game.update();
             g.game.draw();
+            g.window.request_redraw();
         },
         move |g| {
+            // Render function
+            if time.elapsed() < FRAME_TIME {
+                arch::sleep(FRAME_TIME.saturating_sub(time.elapsed()));
+            }
+
+            time = Instant::now();
+
             if let Err(err) = g.game.pixels.render() {
                 error!("pixels.render() failed: {err}");
                 g.exit();
@@ -75,6 +89,7 @@ async fn run() {
             g.window.set_title(&format!("NES (FPS: {:.1})", fps.avg()));
         },
         move |g, event| {
+            // Window handler
             if g.game.input.update(event) {
                 // Close events
                 if g.game.input.quit() {

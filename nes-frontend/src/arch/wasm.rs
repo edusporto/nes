@@ -3,6 +3,7 @@
 use std::future::Future;
 use std::sync::Arc;
 
+use instant::Duration;
 use winit::dpi::LogicalSize;
 use winit::window::Window;
 
@@ -55,4 +56,25 @@ pub fn prepare_window(window: &Arc<Window>) {
         .add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref())
         .unwrap();
     closure.forget();
+}
+
+// I would love for this to work, but it's still not quite there.
+//
+// I have tested this on Windows and on Linux, and have gotten two different but
+// equally bad results.
+//
+// The first result was that it did work, but while the thread was sleeping, no
+// events would register. This meant that some button presses would be ignored
+// by the program.
+// The second result was that nothing happened. My theory is that, in this case,
+// the spawned future would run in the background. If I can get this behaviour to
+// be reproduced reliably, it could be used to start a separate process that would
+// deal uniquely with the game loop.
+#[allow(dead_code, unused_variables)]
+pub fn sleep(duration: Duration) {
+    // wasm_bindgen_futures::spawn_local(async move {
+    //     wasm_timer::Delay::new(duration)
+    //         .await
+    //         .expect("couldn't sleep");
+    // });
 }
