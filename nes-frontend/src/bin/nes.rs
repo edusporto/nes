@@ -6,14 +6,14 @@ use instant::{Duration, Instant};
 use log::error;
 use pixels::{Pixels, SurfaceTexture};
 use winit::dpi::LogicalSize;
-use winit::event_loop::EventLoopBuilder;
-use winit::window::WindowBuilder;
+use winit::event_loop::{EventLoop, EventLoopBuilder};
+use winit::window::{Window, WindowBuilder};
 use winit_input_helper::WinitInputHelper;
 
 use nes_core::screen::{NES_HEIGHT, NES_WIDTH};
 use nes_frontend::arch;
 use nes_frontend::fps::FpsCounter;
-use nes_frontend::game::Game;
+use nes_frontend::game::GameState;
 
 const NES_SIZE: LogicalSize<u32> = LogicalSize::new(NES_WIDTH as u32, NES_HEIGHT as u32);
 const FPS: u32 = 60;
@@ -25,38 +25,9 @@ fn main() {
 }
 
 async fn run() {
-    // TODO: do this better somehow
+    let (window, event_loop, input, pixels) = build_window().await;
 
-    // let file_name = std::env::args()
-    //     .nth(1)
-    //     .expect("Missing the file name to the desired ROM as argument.");
-    // let file_name = "games/Super Mario Bros.nes";
-    let cart = include_bytes!("../../../games/Super Mario Bros.nes");
-
-    let event_loop = EventLoopBuilder::<()>::with_user_event().build();
-    let window = WindowBuilder::new()
-        .with_title("NES")
-        .with_inner_size(NES_SIZE)
-        .with_min_inner_size(NES_SIZE)
-        .build(&event_loop)
-        .expect("WindowBuilder error");
-
-    let window = Arc::new(window);
-
-    arch::prepare_window(&window);
-
-    let input = WinitInputHelper::new();
-    let pixels = {
-        let window_size = window.inner_size();
-        let surface_texture =
-            SurfaceTexture::new(window_size.width, window_size.height, window.as_ref());
-        Pixels::new_async(NES_WIDTH as u32, NES_HEIGHT as u32, surface_texture)
-            .await
-            .expect("Pixels error")
-    };
-
-    let game = Game::start_from_bytes(cart, input, pixels).expect("Couldn't load game");
-
+    let game = GameState::new(input, pixels);
     let mut fps = FpsCounter::new(10);
     let mut time = Instant::now();
 
@@ -103,4 +74,30 @@ async fn run() {
             }
         },
     );
+}
+
+async fn build_window() -> (Arc<Window>, EventLoop<()>, WinitInputHelper, Pixels) {
+    let event_loop = EventLoopBuilder::<()>::with_user_event().build();
+    let window = Arc::new(
+        WindowBuilder::new()
+            .with_title("NES")
+            .with_inner_size(NES_SIZE)
+            .with_min_inner_size(NES_SIZE)
+            .build(&event_loop)
+            .expect("WindowBuilder error"),
+    );
+    let input = WinitInputHelper::new();
+
+    arch::prepare_window(&window);
+
+    let pixels = {
+        let window_size = window.inner_size();
+        let surface_texture =
+            SurfaceTexture::new(window_size.width, window_size.height, window.as_ref());
+        Pixels::new_async(NES_WIDTH as u32, NES_HEIGHT as u32, surface_texture)
+            .await
+            .expect("Pixels error")
+    };
+
+    (window, event_loop, input, pixels)
 }

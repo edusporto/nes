@@ -13,6 +13,7 @@ pixels = "0.11"
 winit = "0.27"
 winit_input_helper = "0.13"
 instant = "0.1"
+fnv = "1.0"
 
 # I need https://github.com/tuzz/game-loop/pull/10 to be merged to use the `game-loop`
 # library in this project, so for the while, I'll be using an alternative repository.

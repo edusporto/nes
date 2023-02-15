@@ -1,82 +1,83 @@
-use std::error::Error;
-
-use nes_core::cartridge::Cartridge;
+use fnv::FnvHashMap;
+use nes_core::cartridge::{Cartridge, CartridgeError};
 use nes_core::controller::Controller;
 use nes_core::Nes;
 use pixels::Pixels;
 use winit::event::VirtualKeyCode;
 use winit_input_helper::WinitInputHelper;
 
-pub struct Game {
-    nes: Nes,
+pub struct GameState {
+    nes: Option<Nes>,
     pub input: WinitInputHelper,
+    pub input_map: FnvHashMap<VirtualKeyCode, Controller>,
     pub pixels: Pixels,
 }
 
 #[allow(dead_code)]
-impl Game {
-    pub fn start(
-        file_name: &str,
-        input: WinitInputHelper,
-        pixels: Pixels,
-    ) -> Result<Game, Box<dyn Error>> {
-        let nes = Nes::new(Cartridge::from_file(file_name)?);
-        Ok(Game { nes, input, pixels })
+impl GameState {
+    pub fn new(input: WinitInputHelper, pixels: Pixels) -> Self {
+        GameState {
+            nes: None,
+            input,
+            pixels,
+            input_map: [
+                (VirtualKeyCode::Up, Controller::UP),
+                (VirtualKeyCode::Right, Controller::RIGHT),
+                (VirtualKeyCode::Down, Controller::DOWN),
+                (VirtualKeyCode::Left, Controller::LEFT),
+                (VirtualKeyCode::Z, Controller::BUTTON_A),
+                (VirtualKeyCode::X, Controller::BUTTON_B),
+                (VirtualKeyCode::Space, Controller::START),
+                (VirtualKeyCode::Back, Controller::SELECT),
+            ]
+            .iter()
+            .cloned()
+            .collect(),
+        }
     }
 
-    pub fn start_from_bytes(
-        rom: &[u8],
-        input: WinitInputHelper,
-        pixels: Pixels,
-    ) -> Result<Game, Box<dyn Error>> {
-        let nes = Nes::new(Cartridge::from_bytes(rom)?);
-        Ok(Game { nes, input, pixels })
+    pub fn start_from_file(&mut self, file_name: &str) -> Result<(), CartridgeError> {
+        self.nes = Some(Nes::new(Cartridge::from_file(file_name)?));
+        Ok(())
+    }
+
+    pub fn start_from_bytes(&mut self, bytes: &[u8]) -> Result<(), CartridgeError> {
+        self.nes = Some(Nes::new(Cartridge::from_bytes(bytes)?));
+        Ok(())
     }
 
     pub fn draw(&mut self) {
-        self.pixels
-            .get_frame_mut()
-            .chunks_exact_mut(4)
-            .zip(self.nes.screen().flatten())
-            .for_each(|(pixel_frame, pixel)| {
-                pixel_frame.copy_from_slice(&[pixel.r, pixel.g, pixel.b, 0xFF]);
-            });
+        if let Some(nes) = self.nes.as_ref() {
+            self.pixels
+                .get_frame_mut()
+                .chunks_exact_mut(4)
+                .zip(nes.screen().flatten())
+                .for_each(|(pixel_frame, pixel)| {
+                    pixel_frame.copy_from_slice(&[pixel.r, pixel.g, pixel.b, 0xFF]);
+                });
+        }
     }
 
     pub fn update(&mut self) {
-        self.nes.next_frame();
-        self.update_controllers();
+        if let Some(nes) = self.nes.as_mut() {
+            nes.next_frame();
+            self.update_controllers();
+        }
     }
 
     pub fn update_controllers(&mut self) {
-        let [controller1, controller2] = self.nes.mut_controllers();
+        let [controller1, controller2] = match self.nes.as_mut() {
+            Some(nes) => nes.mut_controllers(),
+            None => return,
+        };
+
         *controller1 = Controller::empty();
         *controller2 = Controller::empty();
 
-        // TODO: do this better somehow
-        if self.input.key_held(VirtualKeyCode::Up) {
-            controller1.set(Controller::UP, true);
-        }
-        if self.input.key_held(VirtualKeyCode::Right) {
-            controller1.set(Controller::RIGHT, true);
-        }
-        if self.input.key_held(VirtualKeyCode::Down) {
-            controller1.set(Controller::DOWN, true);
-        }
-        if self.input.key_held(VirtualKeyCode::Left) {
-            controller1.set(Controller::LEFT, true);
-        }
-        if self.input.key_held(VirtualKeyCode::Z) {
-            controller1.set(Controller::BUTTON_A, true);
-        }
-        if self.input.key_held(VirtualKeyCode::X) {
-            controller1.set(Controller::BUTTON_B, true);
-        }
-        if self.input.key_held(VirtualKeyCode::Space) {
-            controller1.set(Controller::START, true);
-        }
-        if self.input.key_held(VirtualKeyCode::Back) {
-            controller1.set(Controller::SELECT, true);
+        for (&key, &button) in &self.input_map {
+            if self.input.key_held(key) {
+                controller1.set(button, true);
+            }
         }
     }
 }
