@@ -6,20 +6,24 @@ use pixels::Pixels;
 use winit::event::VirtualKeyCode;
 use winit_input_helper::WinitInputHelper;
 
+use crate::framework::Framework;
+
 pub struct GameState {
     nes: Option<Nes>,
     pub input: WinitInputHelper,
     pub input_map: FnvHashMap<VirtualKeyCode, Controller>,
     pub pixels: Pixels,
+    pub framework: Framework,
 }
 
 #[allow(dead_code)]
 impl GameState {
-    pub fn new(input: WinitInputHelper, pixels: Pixels) -> Self {
+    pub fn new(input: WinitInputHelper, pixels: Pixels, framework: Framework) -> Self {
         GameState {
             nes: None,
             input,
             pixels,
+            framework,
             input_map: [
                 (VirtualKeyCode::Up, Controller::UP),
                 (VirtualKeyCode::Right, Controller::RIGHT),
