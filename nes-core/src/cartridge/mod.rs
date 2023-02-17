@@ -2,13 +2,14 @@
 
 use std::fs;
 use std::io::{self, Read, Seek, SeekFrom};
+use std::rc::Rc;
 
 use binread::{BinRead, BinReaderExt};
 use thiserror::Error;
 
 use crate::system::mapper::{mappers, Mapper};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct Cartridge {
     pub(crate) mirror: CartridgeMirror,
@@ -22,7 +23,7 @@ pub struct Cartridge {
     program_banks: u8,
     character_banks: u8,
 
-    mapper: Box<dyn Mapper>,
+    mapper: Rc<dyn Mapper>,
 }
 
 #[derive(Default, Clone, Debug)]
@@ -116,7 +117,7 @@ impl Cartridge {
         };
 
         let mapper = match mapper_id {
-            0 => Box::new(mappers::Mapper0::new(program_banks, character_banks)),
+            0 => Rc::new(mappers::Mapper0::new(program_banks, character_banks)),
             _ => {
                 return Err(CartridgeError::UnimplementedError(format!(
                     "mapper with id {mapper_id}"

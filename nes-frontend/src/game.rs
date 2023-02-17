@@ -40,14 +40,24 @@ impl GameState {
         }
     }
 
-    pub fn start_from_file(&mut self, file_name: &str) -> Result<(), CartridgeError> {
-        self.nes = Some(Nes::new(Cartridge::from_file(file_name)?));
+    pub fn start_from_file(&mut self, file_name: Option<&str>) -> Result<(), CartridgeError> {
+        self.nes = match file_name {
+            Some(file_name) => Some(Nes::new(Cartridge::from_file(file_name)?)),
+            None => None,
+        };
         Ok(())
     }
 
-    pub fn start_from_bytes(&mut self, bytes: &[u8]) -> Result<(), CartridgeError> {
-        self.nes = Some(Nes::new(Cartridge::from_bytes(bytes)?));
+    pub fn start_from_bytes(&mut self, bytes: Option<&[u8]>) -> Result<(), CartridgeError> {
+        self.nes = match bytes {
+            Some(bytes) => Some(Nes::new(Cartridge::from_bytes(bytes)?)),
+            None => None,
+        };
         Ok(())
+    }
+
+    pub fn start_from_cartridge(&mut self, cart: Option<Cartridge>) {
+        self.nes = cart.map(Nes::new);
     }
 
     pub fn draw(&mut self) {

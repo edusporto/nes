@@ -17,6 +17,7 @@ fnv = "1.0"
 egui = "0.20"
 egui-wgpu = "0.20"
 egui-winit = { version = "0.20", default-features = false, features = ["links"] }
+include_dir = "0.7"
 
 # I need https://github.com/tuzz/game-loop/pull/10 to be merged to use the `game-loop`
 # library in this project, so for the while, I'll be using an alternative repository.

@@ -4,7 +4,7 @@
 /// ```bash
 /// cargo run-wasm --release --package nes-frontend
 /// ```
-/// 
+///
 /// To only build the Wasm frontend, run:
 /// ```bash
 /// cargo run-wasm --release --build-only --package nes-frontend

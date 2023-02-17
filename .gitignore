@@ -11,5 +11,5 @@ Cargo.lock
 **/*.rs.bk
 
 .vscode/
-games/
+roms/
 

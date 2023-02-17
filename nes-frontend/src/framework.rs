@@ -9,13 +9,14 @@ use pixels::PixelsContext;
 use winit::{event::WindowEvent, window::Window};
 
 pub struct Framework {
+    pub gui: Gui,
+
     egui_ctx: Context,
     egui_state: State,
     screen_descriptor: ScreenDescriptor,
     renderer: Renderer,
     paint_jobs: Vec<ClippedPrimitive>,
     textures: TexturesDelta,
-    gui: Gui,
 }
 
 impl Framework {
