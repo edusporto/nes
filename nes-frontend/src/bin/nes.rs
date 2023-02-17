@@ -16,7 +16,6 @@ use nes_frontend::arch;
 use nes_frontend::fps::FpsCounter;
 use nes_frontend::framework::Framework;
 use nes_frontend::game::GameState;
-use nes_frontend::gui::GuiEvent;
 
 const NES_SIZE: LogicalSize<u32> = LogicalSize::new(NES_WIDTH as u32, NES_HEIGHT as u32);
 const SCALED_SIZE: LogicalSize<u32> = LogicalSize::new(NES_SIZE.width * 3, NES_SIZE.height * 3);
@@ -43,15 +42,6 @@ async fn run() {
         0.1,
         |g| {
             // Update function
-            for event in g.game.framework.gui.take_game_events() {
-                match event {
-                    GuiEvent::ChangeRom(cart) => {
-                        g.game.start_from_cartridge(cart);
-                    }
-                    GuiEvent::ToggleSettings => g.game.framework.gui.toggle_settings(),
-                }
-            }
-
             g.game.update();
             g.game.draw();
             g.window.request_redraw();
@@ -101,16 +91,25 @@ async fn run() {
                     g.game.framework.resize(size.width, size.height);
                 }
 
-                // Show settings menu
-                if g.game.input.key_pressed(VirtualKeyCode::Escape) {
-                    g.game.framework.gui.toggle_settings();
+                // Load ROM
+                if let Some(file_name) = g.game.input.dropped_file() {
+                    let contents = std::fs::read(file_name).ok();
+                    g.game.start_from_bytes(contents.as_deref()).ok();
+                    g.game.framework.gui.settings_window.open = false;
                 }
 
+                // Show settings menu
+                if g.game.input.key_pressed(VirtualKeyCode::Escape) {
+                    g.game.framework.gui.settings_window.toggle();
+                }
+
+                // Reset game
                 if g.game.input.key_pressed(VirtualKeyCode::F5) {
                     g.game.restart();
                 }
             }
 
+            // Window / GUI event
             if let winit::event::Event::WindowEvent { event, .. } = event {
                 g.game.framework.handle_event(event);
             }

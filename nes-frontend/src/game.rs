@@ -7,6 +7,7 @@ use winit::event::VirtualKeyCode;
 use winit_input_helper::WinitInputHelper;
 
 use crate::framework::Framework;
+use crate::gui::GuiEvent;
 
 pub struct GameState {
     nes: Option<Nes>,
@@ -77,6 +78,7 @@ impl GameState {
     }
 
     pub fn update(&mut self) {
+        self.treat_gui_events();
         self.update_controllers();
         if let Some(nes) = self.nes.as_mut() {
             nes.next_frame();
@@ -95,6 +97,17 @@ impl GameState {
         for (&key, &button) in &self.input_map {
             if self.input.key_held(key) {
                 controller1.set(button, true);
+            }
+        }
+    }
+
+    pub fn treat_gui_events(&mut self) {
+        for event in self.framework.gui.take_events() {
+            match event {
+                GuiEvent::ChangeRom(cart) => {
+                    self.start_from_cartridge(cart);
+                }
+                GuiEvent::ToggleSettings => self.framework.gui.settings_window.toggle(),
             }
         }
     }
