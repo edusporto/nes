@@ -105,6 +105,10 @@ async fn run() {
                 if g.game.input.key_pressed(VirtualKeyCode::Escape) {
                     g.game.framework.gui.toggle_settings();
                 }
+
+                if g.game.input.key_pressed(VirtualKeyCode::F5) {
+                    g.game.restart();
+                }
             }
 
             if let winit::event::Event::WindowEvent { event, .. } = event {

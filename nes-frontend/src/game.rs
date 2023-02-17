@@ -60,6 +60,10 @@ impl GameState {
         self.nes = cart.map(Nes::new);
     }
 
+    pub fn restart(&mut self) {
+        self.nes.as_mut().map(Nes::system_reset);
+    }
+
     pub fn draw(&mut self) {
         if let Some(nes) = self.nes.as_ref() {
             self.pixels
