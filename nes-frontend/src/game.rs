@@ -77,9 +77,9 @@ impl GameState {
     }
 
     pub fn update(&mut self) {
+        self.update_controllers();
         if let Some(nes) = self.nes.as_mut() {
             nes.next_frame();
-            self.update_controllers();
         }
     }
 
