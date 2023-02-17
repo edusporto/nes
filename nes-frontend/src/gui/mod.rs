@@ -5,9 +5,10 @@ use nes_core::cartridge::Cartridge;
 
 static PRELOADED_ROMS: Dir = include_dir!("$CARGO_MANIFEST_DIR/../roms");
 
-#[derive(Debug, Clone, Copy)]
-pub enum GameEvent {
-    ChangeRom,
+#[derive(Debug)]
+pub enum GuiEvent {
+    ChangeRom(Option<Cartridge>),
+    ToggleSettings,
 }
 
 #[derive(Debug, Default)]
@@ -18,9 +19,8 @@ pub struct Gui {
     /// main game loop.
     ///
     /// I should change this to a channel in the future.
-    game_events: Vec<GameEvent>,
+    gui_events: Vec<GuiEvent>,
 
-    selected_cart: Option<Cartridge>,
     selected_cart_name: Option<String>,
     cartridges: FnvHashMap<String, Cartridge>,
 
@@ -31,20 +31,15 @@ impl Gui {
     /// Create a `Gui`.
     pub fn new() -> Self {
         Self {
-            game_events: Vec::new(),
-            selected_cart: None,
+            gui_events: Vec::new(),
             selected_cart_name: None,
             cartridges: prepare_carts(),
             settings_open: true,
         }
     }
 
-    pub fn take_game_events(&mut self) -> Vec<GameEvent> {
-        std::mem::take(&mut self.game_events)
-    }
-
-    pub fn take_selected_cart(&mut self) -> Option<Cartridge> {
-        std::mem::take(&mut self.selected_cart)
+    pub fn take_game_events(&mut self) -> Vec<GuiEvent> {
+        std::mem::take(&mut self.gui_events)
     }
 
     /// Create the UI using egui.
@@ -66,6 +61,10 @@ impl Gui {
         self.settings_open = !self.settings_open;
     }
 
+    fn send_event(&mut self, event: GuiEvent) {
+        self.gui_events.push(event);
+    }
+
     fn settings_window(&mut self, ctx: &Context) {
         let mut open = self.settings_open;
 
@@ -84,6 +83,10 @@ impl Gui {
                         self.about(ui);
                     })
             });
+
+        if open != self.settings_open {
+            self.send_event(GuiEvent::ToggleSettings)
+        }
     }
 
     fn game_settings(&mut self, ui: &mut Ui) {
@@ -106,11 +109,12 @@ impl Gui {
 
         // Check if the ComboBox changed
         if curr_name != self.selected_cart_name {
-            self.selected_cart = self.selected_cart_name.as_ref().and_then(|name| {
-                self.game_events.push(GameEvent::ChangeRom);
-                self.settings_open = false;
-                self.cartridges.get(name).cloned()
-            });
+            self.send_event(GuiEvent::ChangeRom(
+                self.selected_cart_name
+                    .as_ref()
+                    .and_then(|name| self.cartridges.get(name).cloned()),
+            ));
+            self.send_event(GuiEvent::ToggleSettings);
         }
     }
 

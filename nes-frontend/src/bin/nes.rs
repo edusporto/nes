@@ -16,7 +16,7 @@ use nes_frontend::arch;
 use nes_frontend::fps::FpsCounter;
 use nes_frontend::framework::Framework;
 use nes_frontend::game::GameState;
-use nes_frontend::gui::GameEvent;
+use nes_frontend::gui::GuiEvent;
 
 const NES_SIZE: LogicalSize<u32> = LogicalSize::new(NES_WIDTH as u32, NES_HEIGHT as u32);
 const SCALED_SIZE: LogicalSize<u32> = LogicalSize::new(NES_SIZE.width * 3, NES_SIZE.height * 3);
@@ -45,10 +45,10 @@ async fn run() {
             // Update function
             for event in g.game.framework.gui.take_game_events() {
                 match event {
-                    GameEvent::ChangeRom => {
-                        let cart = g.game.framework.gui.take_selected_cart();
+                    GuiEvent::ChangeRom(cart) => {
                         g.game.start_from_cartridge(cart);
                     }
+                    GuiEvent::ToggleSettings => g.game.framework.gui.toggle_settings(),
                 }
             }
 
