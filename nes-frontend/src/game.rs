@@ -111,4 +111,34 @@ impl GameState {
             }
         }
     }
+
+    pub fn treat_input(&mut self) {
+        // Update the scale factor
+        if let Some(scale_factor) = self.input.scale_factor() {
+            self.framework.scale_factor(scale_factor as f32);
+        }
+
+        // Resize the window
+        if let Some(size) = self.input.window_resized() {
+            self.pixels.resize_surface(size.width, size.height).ok();
+            self.framework.resize(size.width, size.height);
+        }
+
+        // Load ROM
+        if let Some(file_name) = self.input.dropped_file() {
+            let contents = std::fs::read(file_name).ok();
+            self.start_from_bytes(contents.as_deref()).ok();
+            self.framework.gui.settings_window.open = false;
+        }
+
+        // Show settings menu
+        if self.input.key_pressed(VirtualKeyCode::Escape) {
+            self.framework.gui.settings_window.toggle();
+        }
+
+        // Reset game
+        if self.input.key_pressed(VirtualKeyCode::F5) {
+            self.restart();
+        }
+    }
 }

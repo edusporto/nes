@@ -6,7 +6,6 @@ use instant::{Duration, Instant};
 use log::error;
 use pixels::{Pixels, SurfaceTexture};
 use winit::dpi::LogicalSize;
-use winit::event::VirtualKeyCode;
 use winit::event_loop::{EventLoop, EventLoopBuilder};
 use winit::window::{Window, WindowBuilder};
 use winit_input_helper::WinitInputHelper;
@@ -80,33 +79,7 @@ async fn run() {
                     g.exit();
                 }
 
-                // Update the scale factor
-                if let Some(scale_factor) = g.game.input.scale_factor() {
-                    g.game.framework.scale_factor(scale_factor as f32);
-                }
-
-                // Resize the window
-                if let Some(size) = g.game.input.window_resized() {
-                    g.game.pixels.resize_surface(size.width, size.height).ok();
-                    g.game.framework.resize(size.width, size.height);
-                }
-
-                // Load ROM
-                if let Some(file_name) = g.game.input.dropped_file() {
-                    let contents = std::fs::read(file_name).ok();
-                    g.game.start_from_bytes(contents.as_deref()).ok();
-                    g.game.framework.gui.settings_window.open = false;
-                }
-
-                // Show settings menu
-                if g.game.input.key_pressed(VirtualKeyCode::Escape) {
-                    g.game.framework.gui.settings_window.toggle();
-                }
-
-                // Reset game
-                if g.game.input.key_pressed(VirtualKeyCode::F5) {
-                    g.game.restart();
-                }
+                g.game.treat_input();
             }
 
             // Window / GUI event
