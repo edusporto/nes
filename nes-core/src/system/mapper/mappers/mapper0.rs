@@ -1,8 +1,3 @@
-//! Implementation of certain Mappers.
-//!
-//! If you are a user of this library, feel free to
-//! add more mappers.
-
 use crate::system::mapper::Mapper;
 use crate::system::ram::RAM_ADDR_END;
 
