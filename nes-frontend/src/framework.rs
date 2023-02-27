@@ -1,12 +1,13 @@
 // This entire file is based on https://github.com/parasyte/pixels/tree/main/examples/minimal-egui.
 
-use crate::gui::Gui;
-
 use egui::{ClippedPrimitive, Context, TexturesDelta};
 use egui_wgpu::{renderer::ScreenDescriptor, wgpu, Renderer};
 use egui_winit::{winit::event_loop::EventLoopWindowTarget, State};
 use pixels::PixelsContext;
+use tokio::sync::mpsc::Sender;
 use winit::{event::WindowEvent, window::Window};
+
+use crate::gui::{Gui, GuiEvent};
 
 pub struct Framework {
     pub gui: Gui,
@@ -26,6 +27,7 @@ impl Framework {
         height: u32,
         scale_factor: f32,
         pixels: &pixels::Pixels,
+        sender: Sender<GuiEvent>,
     ) -> Self {
         let max_texture_size = pixels.device().limits().max_texture_dimension_2d as usize;
 
@@ -39,7 +41,7 @@ impl Framework {
         };
         let renderer = Renderer::new(pixels.device(), pixels.render_texture_format(), None, 1);
         let textures = TexturesDelta::default();
-        let gui = Gui::new();
+        let gui = Gui::new(sender);
 
         Self {
             egui_ctx,

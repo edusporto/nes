@@ -78,3 +78,7 @@ pub fn sleep(duration: Duration) {
     //         .expect("couldn't sleep");
     // });
 }
+
+pub fn spawn<F: std::future::Future<Output = ()> + 'static>(fut: F) {
+    wasm_bindgen_futures::spawn_local(fut)
+}

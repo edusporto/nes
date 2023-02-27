@@ -3,6 +3,7 @@ use nes_core::cartridge::{Cartridge, CartridgeError};
 use nes_core::controller::Controller;
 use nes_core::Nes;
 use pixels::Pixels;
+use tokio::sync::mpsc::Receiver;
 use winit::event::VirtualKeyCode;
 use winit_input_helper::WinitInputHelper;
 
@@ -15,16 +16,23 @@ pub struct GameState {
     pub input_map: FnvHashMap<VirtualKeyCode, Controller>,
     pub pixels: Pixels,
     pub framework: Framework,
+    pub receiver: Receiver<GuiEvent>,
 }
 
 #[allow(dead_code)]
 impl GameState {
-    pub fn new(input: WinitInputHelper, pixels: Pixels, framework: Framework) -> Self {
+    pub fn new(
+        input: WinitInputHelper,
+        pixels: Pixels,
+        framework: Framework,
+        receiver: Receiver<GuiEvent>,
+    ) -> Self {
         GameState {
             nes: None,
             input,
             pixels,
             framework,
+            receiver,
             input_map: [
                 (VirtualKeyCode::Up, Controller::UP),
                 (VirtualKeyCode::Right, Controller::RIGHT),
@@ -102,11 +110,13 @@ impl GameState {
     }
 
     pub fn treat_gui_events(&mut self) {
-        for event in self.framework.gui.take_events() {
+        while let Ok(event) = self.receiver.try_recv() {
             match event {
-                GuiEvent::ChangeRom(cart) => {
-                    self.start_from_cartridge(cart);
+                GuiEvent::ChangeRom(Some((name, cart))) => {
+                    self.framework.gui.settings_window.selected_cart_name = Some(name);
+                    self.start_from_cartridge(Some(cart));
                 }
+                GuiEvent::ChangeRom(None) => self.start_from_cartridge(None),
                 GuiEvent::ToggleSettings => self.framework.gui.settings_window.toggle(),
             }
         }

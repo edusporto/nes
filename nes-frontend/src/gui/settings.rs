@@ -1,32 +1,36 @@
+use tokio::sync::mpsc::Sender;
+
 use egui::{Context, Ui};
 use fnv::FnvHashMap;
 use include_dir::{include_dir, Dir};
+use rfd::AsyncFileDialog;
+
 use nes_core::cartridge::Cartridge;
 
-use super::{events::Events, GuiEvent};
+use super::GuiEvent;
 
 static PRELOADED_ROMS: Dir = include_dir!("$CARGO_MANIFEST_DIR/../roms");
 
 #[derive(Debug)]
 pub struct SettingsWindow {
     pub open: bool,
-    selected_cart_name: Option<String>,
+    pub selected_cart_name: Option<String>,
     cartridges: FnvHashMap<String, Cartridge>,
 
-    events: Events,
+    event_sender: Sender<GuiEvent>,
 }
 
 impl SettingsWindow {
-    pub fn new() -> Self {
+    pub fn new(event_sender: Sender<GuiEvent>) -> Self {
         Self {
             open: true,
             selected_cart_name: None,
             cartridges: prepare_carts(),
-            events: Events::new(),
+            event_sender,
         }
     }
 
-    pub(crate) fn ui(&mut self, ctx: &Context) -> Events {
+    pub(crate) fn ui(&mut self, ctx: &Context) {
         let mut open = self.open;
 
         egui::Window::new("Settings")
@@ -45,11 +49,7 @@ impl SettingsWindow {
                     })
             });
 
-        if open != self.open {
-            self.events.send_event(GuiEvent::ToggleSettings)
-        }
-
-        std::mem::take(&mut self.events)
+        self.open = open;
     }
 
     pub fn toggle(&mut self) {
@@ -65,6 +65,8 @@ impl SettingsWindow {
         let curr_name = self.selected_cart_name.clone();
 
         ui.heading("Game settings");
+
+        // Preloaded ROMs
         egui::ComboBox::from_label("Start preloaded ROM")
             .selected_text(self.selected_cart_name.as_deref().unwrap_or("None"))
             .show_ui(ui, |ui| {
@@ -76,13 +78,54 @@ impl SettingsWindow {
 
         // Check if the ComboBox changed
         if curr_name != self.selected_cart_name {
-            self.events.send_event(GuiEvent::ChangeRom(
-                self.selected_cart_name
-                    .as_ref()
-                    .and_then(|name| self.cartridges.get(name).cloned()),
-            ));
-            self.events.send_event(GuiEvent::ToggleSettings);
+            // could be done with Applicative in Haskell:
+            // ```
+            // combine :: Maybe a -> Maybe b -> Maybe (a, b)
+            // combine ma mb = (,) <$> ma <*> mb
+            // ```
+            // is there a better way to do this in Rust?
+            let event_content = (|| {
+                Some((
+                    self.selected_cart_name.clone()?,
+                    self.selected_cart_name
+                        .as_ref()
+                        .and_then(|name| self.cartridges.get(name).cloned())?,
+                ))
+            })();
+
+            crate::event!(self.event_sender, |sender| {
+                sender
+                    .send(GuiEvent::ChangeRom(event_content))
+                    .await
+                    .unwrap();
+                sender.send(GuiEvent::ToggleSettings).await.unwrap();
+            });
         }
+
+        // Button to load ROM from file system
+        ui.horizontal(|ui| {
+            if ui.button("Load").clicked() {
+                crate::event!(self.event_sender, |sender| {
+                    let file = AsyncFileDialog::new()
+                        .add_filter("NES ROM", &["nes"])
+                        .pick_file()
+                        .await;
+
+                    if let Some(file) = file {
+                        let data = file.read().await;
+                        let cart = Cartridge::from_bytes(&data).ok();
+                        let event_content = cart.map(|cart| (file.file_name(), cart));
+
+                        sender
+                            .send(GuiEvent::ChangeRom(event_content))
+                            .await
+                            .unwrap();
+                        sender.send(GuiEvent::ToggleSettings).await.unwrap();
+                    }
+                });
+            }
+            ui.label("Load ROM from storage");
+        });
     }
 
     fn ui_settings(&mut self, ui: &mut Ui) {

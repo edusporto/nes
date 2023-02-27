@@ -15,3 +15,7 @@ pub fn prepare_window(_window: &std::sync::Arc<winit::window::Window>) {}
 pub fn sleep(duration: Duration) {
     spin_sleep::sleep(duration);
 }
+
+pub fn spawn<F: std::future::Future + 'static>(fut: F) {
+    pollster::block_on(fut);
+}

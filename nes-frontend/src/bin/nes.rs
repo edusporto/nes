@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 use instant::{Duration, Instant};
 use log::error;
+use nes_frontend::gui::GuiEvent;
 use pixels::{Pixels, SurfaceTexture};
+use tokio::sync::mpsc::Receiver;
 use winit::dpi::LogicalSize;
 use winit::event_loop::{EventLoop, EventLoopBuilder};
 use winit::window::{Window, WindowBuilder};
@@ -27,9 +29,9 @@ fn main() {
 }
 
 async fn run() {
-    let (window, event_loop, input, pixels, framework) = build_window().await;
+    let (window, event_loop, input, pixels, framework, receiver) = build_window().await;
 
-    let game = GameState::new(input, pixels, framework);
+    let game = GameState::new(input, pixels, framework, receiver);
     let mut fps = FpsCounter::new(10);
     let mut time = Instant::now();
 
@@ -96,6 +98,7 @@ async fn build_window() -> (
     WinitInputHelper,
     Pixels,
     Framework,
+    Receiver<GuiEvent>,
 ) {
     let event_loop = EventLoopBuilder::<()>::with_user_event().build();
     let window = Arc::new(
@@ -119,13 +122,16 @@ async fn build_window() -> (
             .expect("Pixels error")
     };
 
+    let (sender, receiver) = tokio::sync::mpsc::channel(50);
+
     let framework = Framework::new(
         &event_loop,
         window.inner_size().width,
         window.inner_size().height,
         window.scale_factor() as f32 * 1.2,
         &pixels,
+        sender,
     );
 
-    (window, event_loop, input, pixels, framework)
+    (window, event_loop, input, pixels, framework, receiver)
 }

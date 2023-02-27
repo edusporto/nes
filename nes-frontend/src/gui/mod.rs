@@ -1,16 +1,14 @@
-pub mod events;
 mod settings;
-
-use std::mem::take;
 
 use egui::Context;
 use nes_core::cartridge::Cartridge;
+use tokio::sync::mpsc::Sender;
 
-use self::{events::Events, settings::SettingsWindow};
+use self::settings::SettingsWindow;
 
 #[derive(Debug)]
 pub enum GuiEvent {
-    ChangeRom(Option<Cartridge>),
+    ChangeRom(Option<(String, Cartridge)>),
     ToggleSettings,
 }
 
@@ -20,25 +18,15 @@ pub struct Gui {
     /// all events that require changing the game state will
     /// be represented as a `GameEvent` to be managed by the
     /// main game loop.
-    ///
-    /// I should change this to a channel in the future.
-    events: Events,
-
     pub settings_window: SettingsWindow,
 }
 
 impl Gui {
     /// Create a `Gui`.
-    pub fn new() -> Self {
+    pub fn new(event_sender: Sender<GuiEvent>) -> Self {
         Self {
-            events: Events::new(),
-
-            settings_window: SettingsWindow::new(),
+            settings_window: SettingsWindow::new(event_sender),
         }
-    }
-
-    pub fn take_events(&mut self) -> Events {
-        take(&mut self.events)
     }
 
     /// Create the UI using egui.
@@ -53,6 +41,6 @@ impl Gui {
             );
         });
 
-        self.events.chain(self.settings_window.ui(ctx));
+        self.settings_window.ui(ctx);
     }
 }
