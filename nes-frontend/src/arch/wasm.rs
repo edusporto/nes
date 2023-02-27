@@ -9,7 +9,7 @@ use winit::window::Window;
 
 pub fn prepare_env() {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-    console_log::init_with_level(log::Level::Trace).expect("error initializing logger");
+    console_log::init_with_level(log::Level::Info).expect("error initializing logger");
 }
 
 pub fn start_run<F: Future<Output = ()> + 'static>(fut: F) -> F::Output {
@@ -31,6 +31,10 @@ pub fn prepare_window(window: &Arc<Window>) {
 
     let window = Arc::clone(&window);
 
+    let canvas = window.canvas();
+    // Prevent bottom padding (without this, the window is bigger than the canvas)
+    canvas.style().set_property("vertical-align", "bottom").ok();
+
     // Initialize winit window with current dimensions of browser client
     window.set_inner_size(get_window_size());
 
@@ -40,10 +44,7 @@ pub fn prepare_window(window: &Arc<Window>) {
     web_sys::window()
         .and_then(|win| win.document())
         .and_then(|doc| doc.body())
-        .and_then(|body| {
-            body.append_child(&web_sys::Element::from(window.canvas()))
-                .ok()
-        })
+        .and_then(|body| body.append_child(&web_sys::Element::from(canvas)).ok())
         .expect("couldn't append canvas to document body");
 
     // Listen for resize event on browser client. Adjust winit window dimensions
