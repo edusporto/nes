@@ -76,7 +76,7 @@ impl GameState {
     pub fn draw(&mut self) {
         if let Some(nes) = self.nes.as_ref() {
             self.pixels
-                .get_frame_mut()
+                .frame_mut()
                 .chunks_exact_mut(4)
                 .zip(nes.screen().flatten())
                 .for_each(|(pixel_frame, pixel)| {

@@ -9,14 +9,14 @@ default-run = "nes"
 [dependencies]
 nes-core = { path = "../nes-core" }
 log = "0.4"
-pixels = "0.11"
-winit = "0.27"
-winit_input_helper = "0.13"
+pixels = "0.13"
+winit = "0.28"
+winit_input_helper = "0.14"
 instant = "0.1"
 fnv = "1.0"
-egui = "0.20"
-egui-wgpu = "0.20"
-egui-winit = { version = "0.20", default-features = false, features = ["links"] }
+egui = "0.22"
+egui-wgpu = "0.22"
+egui-winit = { version = "0.22", default-features = false, features = ["links"] }
 include_dir = "0.7"
 rfd = "0.11"
 tokio = { version = "1.25", features = ["sync"] }
@@ -28,7 +28,7 @@ game-loop = { git = "https://github.com/edusporto/game-loop", features = ["winit
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1"
-console_log = "0.2"
+console_log = "1.0.0"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = ["GpuTextureFormat"] }

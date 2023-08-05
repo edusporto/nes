@@ -55,7 +55,7 @@ async fn run() {
 
             time = Instant::now();
 
-            g.game.framework.prepare(&g.window);
+            g.game.framework.prepare(g.window.as_ref());
             let render_result = g
                 .game
                 .pixels
@@ -77,7 +77,7 @@ async fn run() {
             // Window handler
             if g.game.input.update(event) {
                 // Close events
-                if g.game.input.quit() {
+                if g.game.input.close_requested() || g.game.input.destroyed() {
                     g.exit();
                 }
 
