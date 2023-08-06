@@ -1,9 +1,8 @@
-use tokio::sync::mpsc::Sender;
-
 use egui::{Context, Ui};
 use fnv::FnvHashMap;
 use include_dir::{include_dir, Dir};
 use rfd::AsyncFileDialog;
+use tokio::sync::mpsc::Sender;
 
 use nes_core::cartridge::Cartridge;
 
@@ -113,8 +112,18 @@ impl SettingsWindow {
 
                     if let Some(file) = file {
                         let data = file.read().await;
-                        let cart = Cartridge::from_bytes(&data).ok();
-                        let event_content = cart.map(|cart| (file.file_name(), cart));
+                        let cart = match Cartridge::from_bytes(&data) {
+                            Ok(cart) => cart,
+                            Err(err) => {
+                                sender
+                                    .send(GuiEvent::CartridgeError(err.to_string()))
+                                    .await
+                                    .unwrap();
+                                return;
+                            }
+                        };
+
+                        let event_content = Some((file.file_name(), cart));
 
                         sender
                             .send(GuiEvent::ChangeRom(event_content))

@@ -1,15 +1,18 @@
+mod error;
 mod settings;
 
 use egui::Context;
 use nes_core::cartridge::Cartridge;
 use tokio::sync::mpsc::Sender;
 
+use self::error::ErrorWindow;
 use self::settings::SettingsWindow;
 
 #[derive(Debug)]
 pub enum GuiEvent {
     ChangeRom(Option<(String, Cartridge)>),
     ToggleSettings,
+    CartridgeError(String),
 }
 
 #[derive(Debug)]
@@ -19,6 +22,7 @@ pub struct Gui {
     /// be represented as a `GameEvent` to be managed by the
     /// main game loop.
     pub settings_window: SettingsWindow,
+    pub error_window: ErrorWindow,
 }
 
 impl Gui {
@@ -26,6 +30,7 @@ impl Gui {
     pub fn new(event_sender: Sender<GuiEvent>) -> Self {
         Self {
             settings_window: SettingsWindow::new(event_sender),
+            error_window: ErrorWindow::new(),
         }
     }
 
@@ -42,5 +47,6 @@ impl Gui {
         });
 
         self.settings_window.ui(ctx);
+        self.error_window.ui(ctx);
     }
 }

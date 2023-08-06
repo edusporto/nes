@@ -118,6 +118,10 @@ impl GameState {
                 }
                 GuiEvent::ChangeRom(None) => self.start_from_cartridge(None),
                 GuiEvent::ToggleSettings => self.framework.gui.settings_window.toggle(),
+                GuiEvent::CartridgeError(message) => {
+                    self.framework.gui.settings_window.toggle();
+                    self.framework.gui.error_window.show(&message);
+                }
             }
         }
     }

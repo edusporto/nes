@@ -61,13 +61,13 @@ pub struct CartridgeHeader {
 /// - UnimplementedError: Functionality not yet implemented
 #[derive(Error, Debug)]
 pub enum CartridgeError {
-    #[error("could not read ROM file: {0}")]
+    #[error("Could not read ROM file: {0}")]
     FileError(#[from] io::Error),
-    #[error("invalid header for ROM file")]
+    #[error("Invalid header for ROM file")]
     HeaderError(#[from] binread::Error),
-    #[error("unknown ROM file type: {0}")]
+    #[error("Unknown ROM file type: {0}")]
     FileTypeError(u8),
-    #[error("unimplemented: {0}")]
+    #[error("Unimplemented: {0}")]
     UnimplementedError(String),
 }
 
