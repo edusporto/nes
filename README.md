@@ -4,11 +4,11 @@ Multi-platform NES emulator built with Rust.
 
 # Running
 
-This project is made with Rust. To install the toolchain necessary to build this
-project, check out https://rustup.rs/.
+This project is made with Rust. To install the toolchain necessary to build it,
+check out https://rustup.rs/.
 
-Once the toolchain is installed, you can compile the project to run natively in
-your operating system or run in the browser with WebAssembly.
+Once the toolchain is installed, you can compile the project to run natively on
+your operating system or run on the browser with WebAssembly.
 
 ## Native
 
