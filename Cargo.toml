@@ -7,3 +7,9 @@ members = [
 ]
 
 resolver = "2" # needed due to bug in wgpu
+
+[profile.release-small]
+inherits = "release"
+strip = "symbols"
+lto = true
+opt-level = "s"
