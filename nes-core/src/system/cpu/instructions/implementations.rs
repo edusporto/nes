@@ -1,4 +1,4 @@
-///! Instruction implementations.
+//! Instruction implementations.
 use crate::system::cpu::{flags::CpuFlags, Cpu, Instruction, STACK_BASE};
 
 impl Cpu {

@@ -4,12 +4,14 @@ use bitfield::bitfield;
 use bitflags::bitflags;
 
 bitflags! {
+    #[derive(Copy, Clone, Debug)]
     pub struct StatusReg: u8 {
         const SPRITE_OVERFLOW = 0b0010_0000;
         const SPRITE_ZERO_HIT = 0b0100_0000;
         const VERTICAL_BLANK  = 0b1000_0000;
     }
 
+    #[derive(Copy, Clone, Debug)]
     pub struct MaskReg: u8 {
         const GRAYSCALE              = 0b0000_0001;
         const RENDER_BACKGROUND_LEFT = 0b0000_0010;
@@ -21,6 +23,7 @@ bitflags! {
         const ENHANCE_BLUE           = 0b1000_0000;
     }
 
+    #[derive(Copy, Clone, Debug)]
     pub struct ControlReg: u8 {
         const NAMETABLE_X        = 0b0000_0001;
         const NAMETABLE_Y        = 0b0000_0010;

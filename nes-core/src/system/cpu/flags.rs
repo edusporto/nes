@@ -3,6 +3,7 @@
 use bitflags::bitflags;
 
 bitflags! {
+    #[derive(Copy, Clone, Debug)]
     pub struct CpuFlags: u8 {
         /// Carry
         const C = 0b00000001;

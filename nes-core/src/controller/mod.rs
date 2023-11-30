@@ -6,6 +6,7 @@ pub const CTRL_ADDR_START: u16 = 0x4016;
 pub const CTRL_ADDR_END: u16 = 0x4017;
 
 bitflags! {
+    #[derive(Copy, Clone, Debug)]
     pub struct Controller: u8 {
         const    RIGHT = 0b0000_0001;
         const     LEFT = 0b0000_0010;
