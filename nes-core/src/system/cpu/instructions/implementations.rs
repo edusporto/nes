@@ -144,7 +144,7 @@ impl Cpu {
         // if the addresing mode is implied, write to the Accumulator
         // otherwise, write to the memory
         let addrmode = Instruction::lookup(self.data.opcode).addrmode;
-        if addrmode as usize == Cpu::imp as usize {
+        if addrmode.typ == Cpu::IMP.typ {
             self.a = (result & 0xFF) as u8;
         } else {
             self.write(self.data.addr_abs, (result & 0xFF) as u8);
@@ -571,7 +571,7 @@ impl Cpu {
         // if the addresing mode is implied, write to the Accumulator
         // otherwise, write to the memory
         let addrmode = Instruction::lookup(self.data.opcode).addrmode;
-        if addrmode as usize == Cpu::imp as usize {
+        if addrmode.typ == Cpu::IMP.typ {
             self.a = (result & 0xFF) as u8;
         } else {
             self.write(self.data.addr_abs, (result & 0xFF) as u8);
@@ -694,7 +694,7 @@ impl Cpu {
         self.status.set(CpuFlags::Z, result & 0xFF == 0);
 
         let addrmode = Instruction::lookup(self.data.opcode).addrmode;
-        if addrmode as usize == Cpu::imp as usize {
+        if addrmode.typ == Cpu::IMP.typ {
             self.a = (result & 0xFF) as u8;
         } else {
             self.write(self.data.addr_abs, (result & 0xFF) as u8);
@@ -722,7 +722,7 @@ impl Cpu {
         self.status.set(CpuFlags::Z, result & 0xFF == 0);
 
         let addrmode = Instruction::lookup(self.data.opcode).addrmode;
-        if addrmode as usize == Cpu::imp as usize {
+        if addrmode.typ == Cpu::IMP.typ {
             self.a = (result & 0xFF) as u8;
         } else {
             self.write(self.data.addr_abs, (result & 0xFF) as u8);

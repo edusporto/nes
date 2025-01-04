@@ -270,7 +270,7 @@ impl Cpu {
         let mut cycles = ins.cycles;
 
         // Call instruction
-        let add_cycle1 = (ins.addrmode)(self);
+        let add_cycle1 = (ins.addrmode.run)(self);
         let add_cycle2 = (ins.execute)(self);
 
         // `addrmode` and `execute` return either 0 or 1.
@@ -291,7 +291,7 @@ impl Cpu {
     fn fetch(&mut self) -> u8 {
         let addrmode = Instruction::lookup(self.data.opcode).addrmode;
         // Compare function pointers
-        if addrmode as usize != Cpu::imp as usize {
+        if addrmode.typ != Cpu::IMP.typ {
             self.data.fetched = self.read(self.data.addr_abs);
         }
         self.data.fetched
@@ -302,27 +302,4 @@ impl Default for Cpu {
     fn default() -> Self {
         Self::new()
     }
-}
-
-#[test]
-fn test_fn_equality() {
-    assert_eq!(Cpu::imp as usize, Cpu::imp as usize);
-
-    let addr_modes = [
-        Cpu::imm,
-        Cpu::zp0,
-        Cpu::zpx,
-        Cpu::zpy,
-        Cpu::abs,
-        Cpu::abx,
-        Cpu::aby,
-        Cpu::ind,
-        Cpu::izx,
-        Cpu::izy,
-        Cpu::rel,
-    ];
-
-    addr_modes
-        .iter()
-        .for_each(|&mode| assert_ne!(mode as usize, Cpu::imp as usize));
 }

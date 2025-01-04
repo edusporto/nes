@@ -1,15 +1,15 @@
 pub mod definitions;
 mod implementations;
 
-use super::Cpu;
+use super::{addressing::AddrMode, Cpu};
 use definitions::LOOKUP_TABLE;
 
 #[derive(Clone, Copy)]
 pub struct Instruction {
-    pub name: &'static str,
-    pub opcode: u8,
+    pub _name: &'static str,
+    pub _opcode: u8,
     pub cycles: u8,
-    pub addrmode: fn(cpu: &mut Cpu) -> u8,
+    pub addrmode: AddrMode,
     pub execute: fn(cpu: &mut Cpu) -> u8,
 }
 
