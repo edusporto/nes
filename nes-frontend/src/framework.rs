@@ -1,9 +1,9 @@
-// This entire file is based on https://github.com/parasyte/pixels/tree/main/examples/minimal-egui.
+// This entire file is based on https://github.com/parasyte/pixels/tree/main/examples/minimal-egui
 
-use egui::{ClippedPrimitive, Context, TexturesDelta};
-use egui_wgpu::{renderer::ScreenDescriptor, wgpu, Renderer};
-use egui_winit::{winit::event_loop::EventLoopWindowTarget, State};
-use pixels::PixelsContext;
+use egui::{ClippedPrimitive, Context, TexturesDelta, ViewportId};
+use egui_wgpu::{Renderer, RendererOptions, ScreenDescriptor};
+use egui_winit::State;
+use pixels::{wgpu, PixelsContext};
 use tokio::sync::mpsc::Sender;
 use winit::{event::WindowEvent, window::Window};
 
@@ -21,25 +21,37 @@ pub struct Framework {
 }
 
 impl Framework {
-    pub fn new<T>(
-        event_loop: &EventLoopWindowTarget<T>,
+    /// `zoom_factor` scales the whole GUI on top of the window's native scale
+    /// factor (e.g. `1.2` makes everything 20% bigger).
+    pub fn new(
+        window: &Window,
         width: u32,
         height: u32,
-        scale_factor: f32,
+        zoom_factor: f32,
         pixels: &pixels::Pixels,
         sender: Sender<GuiEvent>,
     ) -> Self {
         let max_texture_size = pixels.device().limits().max_texture_dimension_2d as usize;
 
         let egui_ctx = Context::default();
-        let mut egui_state = egui_winit::State::new(event_loop);
-        egui_state.set_max_texture_side(max_texture_size);
-        egui_state.set_pixels_per_point(scale_factor);
+        egui_ctx.set_zoom_factor(zoom_factor);
+        let egui_state = egui_winit::State::new(
+            egui_ctx.clone(),
+            ViewportId::ROOT,
+            window,
+            Some(window.scale_factor() as f32),
+            None,
+            Some(max_texture_size),
+        );
         let screen_descriptor = ScreenDescriptor {
             size_in_pixels: [width, height],
-            pixels_per_point: scale_factor,
+            pixels_per_point: egui_winit::pixels_per_point(&egui_ctx, window),
         };
-        let renderer = Renderer::new(pixels.device(), pixels.render_texture_format(), None, 1);
+        let renderer = Renderer::new(
+            pixels.device(),
+            pixels.render_texture_format(),
+            RendererOptions::default(),
+        );
         let textures = TexturesDelta::default();
         let gui = Gui::new(sender);
 
@@ -54,8 +66,8 @@ impl Framework {
         }
     }
 
-    pub fn handle_event(&mut self, event: &WindowEvent) {
-        let _ = self.egui_state.on_event(&self.egui_ctx, event);
+    pub fn handle_event(&mut self, window: &Window, event: &WindowEvent) {
+        let _ = self.egui_state.on_window_event(window, event);
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -64,22 +76,23 @@ impl Framework {
         }
     }
 
-    pub fn scale_factor(&mut self, scale_factor: f32) {
-        self.screen_descriptor.pixels_per_point = scale_factor;
-    }
-
     pub fn prepare(&mut self, window: &Window) {
         // Run the egui frame and create all paint jobs to prepare for rendering.
         let raw_input = self.egui_state.take_egui_input(window);
-        let output = self.egui_ctx.run(raw_input, |egui_ctx| {
-            // Draw the demo application.
-            self.gui.ui(egui_ctx);
+        let output = self.egui_ctx.run_ui(raw_input, |ui| {
+            // Draw the application.
+            self.gui.ui(ui.ctx());
         });
 
         self.textures.append(output.textures_delta);
         self.egui_state
-            .handle_platform_output(window, &self.egui_ctx, output.platform_output);
-        self.paint_jobs = self.egui_ctx.tessellate(output.shapes);
+            .handle_platform_output(window, output.platform_output);
+        // `pixels_per_point` is the window's scale factor times egui's zoom
+        // factor, so it tracks DPI changes and zoom changes automatically.
+        self.screen_descriptor.pixels_per_point = output.pixels_per_point;
+        self.paint_jobs = self
+            .egui_ctx
+            .tessellate(output.shapes, output.pixels_per_point);
     }
 
     pub fn render(
@@ -103,18 +116,24 @@ impl Framework {
 
         // Render egui with WGPU
         {
-            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let mut rpass = encoder
+                .begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("egui"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: render_target,
+                    depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Load,
-                        store: true,
+                        store: wgpu::StoreOp::Store,
                     },
                 })],
                 depth_stencil_attachment: None,
-            });
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            })
+                .forget_lifetime();
 
             self.renderer
                 .render(&mut rpass, &self.paint_jobs, &self.screen_descriptor);

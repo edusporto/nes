@@ -4,7 +4,7 @@ use std::fs;
 use std::io::{self, Read, Seek, SeekFrom};
 use std::rc::Rc;
 
-use binread::{BinRead, BinReaderExt};
+use binrw::BinRead;
 use thiserror::Error;
 
 use crate::system::mapper::{mappers, Mapper};
@@ -64,7 +64,7 @@ pub enum CartridgeError {
     #[error("Could not read ROM file: {0}")]
     FileError(#[from] io::Error),
     #[error("Invalid header for ROM file")]
-    HeaderError(#[from] binread::Error),
+    HeaderError(#[from] binrw::Error),
     #[error("Unknown ROM file type: {0}")]
     FileTypeError(u8),
     #[error("Unimplemented: {0}")]
@@ -77,9 +77,9 @@ impl Cartridge {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Cartridge, CartridgeError> {
-        let mut reader = binread::io::Cursor::new(bytes);
+        let mut reader = io::Cursor::new(bytes);
 
-        let header: CartridgeHeader = reader.read_be()?;
+        let header = CartridgeHeader::read_be(&mut reader)?;
 
         if header.mapper1 & 0x04 != 0 {
             // skip 512 bytes

@@ -3,8 +3,8 @@
 use std::future::Future;
 use std::sync::Arc;
 
-use instant::Duration;
-use winit::dpi::LogicalSize;
+use web_time::Duration;
+use winit::dpi::{LogicalSize, PhysicalSize};
 use winit::window::Window;
 
 pub fn prepare_env() {
@@ -16,7 +16,14 @@ pub fn start_run<F: Future<Output = ()> + 'static>(fut: F) -> F::Output {
     wasm_bindgen_futures::spawn_local(fut)
 }
 
-pub fn prepare_window(window: &Arc<Window>) {
+/// Attaches the canvas to the page and returns the initial physical size of the
+/// window's surface.
+///
+/// On the web, winit only learns the canvas size from a `ResizeObserver` once
+/// the event loop is running, so `Window::inner_size()` is still zero here.
+/// The size is computed from the browser window instead, and the real size
+/// arrives later as a regular `Resized` event.
+pub fn prepare_window(window: &Arc<Window>) -> PhysicalSize<u32> {
     use wasm_bindgen::JsCast;
     use winit::platform::web::WindowExtWebSys;
 
@@ -29,14 +36,11 @@ pub fn prepare_window(window: &Arc<Window>) {
         )
     };
 
-    let window = Arc::clone(&window);
+    let window = Arc::clone(window);
 
-    let canvas = window.canvas();
+    let canvas = window.canvas().expect("Couldn't get canvas!");
     // Prevent bottom padding (without this, the window is bigger than the canvas)
     canvas.style().set_property("vertical-align", "bottom").ok();
-
-    // Initialize winit window with current dimensions of browser client
-    window.set_inner_size(get_window_size());
 
     let client_window = web_sys::window().unwrap();
 
@@ -47,16 +51,25 @@ pub fn prepare_window(window: &Arc<Window>) {
         .and_then(|body| body.append_child(&web_sys::Element::from(canvas)).ok())
         .expect("couldn't append canvas to document body");
 
+    // Initialize winit window with current dimensions of browser client.
+    // This must happen after the canvas is attached: winit ignores size
+    // requests for canvases that aren't part of the document.
+    let initial_size = get_window_size();
+    let _ = window.request_inner_size(initial_size);
+    let initial_size = initial_size.to_physical(window.scale_factor());
+
     // Listen for resize event on browser client. Adjust winit window dimensions
     // on event trigger
     let closure = wasm_bindgen::closure::Closure::wrap(Box::new(move |_e: web_sys::Event| {
         let size = get_window_size();
-        window.set_inner_size(size)
+        let _ = window.request_inner_size(size);
     }) as Box<dyn FnMut(_)>);
     client_window
         .add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref())
         .unwrap();
     closure.forget();
+
+    initial_size
 }
 
 // I would love for this to work, but it's still not quite there.

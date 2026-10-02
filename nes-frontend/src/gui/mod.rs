@@ -36,7 +36,7 @@ impl Gui {
 
     /// Create the UI using egui.
     pub fn ui(&mut self, ctx: &Context) {
-        egui::Area::new("egui_area").show(ctx, |ui| {
+        egui::Area::new(egui::Id::new("egui_area")).show(ctx, |ui| {
             // `\u{2699}` is the ⚙️ (gear) emoji.
             // for some reason, egui draws a white square after the gear when
             // using the actual emoji, which is `\u{2699️}\u{FE0F}`

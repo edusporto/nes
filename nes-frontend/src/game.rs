@@ -4,26 +4,26 @@ use nes_core::controller::Controller;
 use nes_core::Nes;
 use pixels::Pixels;
 use tokio::sync::mpsc::Receiver;
-use winit::event::VirtualKeyCode;
+use winit::keyboard::KeyCode;
 use winit_input_helper::WinitInputHelper;
 
 use crate::framework::Framework;
 use crate::gui::GuiEvent;
 
-pub struct GameState {
+pub struct GameState<'a> {
     nes: Option<Nes>,
     pub input: WinitInputHelper,
-    pub input_map: FnvHashMap<VirtualKeyCode, Controller>,
-    pub pixels: Pixels,
+    pub input_map: FnvHashMap<KeyCode, Controller>,
+    pub pixels: Pixels<'a>,
     pub framework: Framework,
     pub receiver: Receiver<GuiEvent>,
 }
 
 #[allow(dead_code)]
-impl GameState {
+impl<'a> GameState<'a> {
     pub fn new(
         input: WinitInputHelper,
-        pixels: Pixels,
+        pixels: Pixels<'a>,
         framework: Framework,
         receiver: Receiver<GuiEvent>,
     ) -> Self {
@@ -34,14 +34,14 @@ impl GameState {
             framework,
             receiver,
             input_map: [
-                (VirtualKeyCode::Up, Controller::UP),
-                (VirtualKeyCode::Right, Controller::RIGHT),
-                (VirtualKeyCode::Down, Controller::DOWN),
-                (VirtualKeyCode::Left, Controller::LEFT),
-                (VirtualKeyCode::Z, Controller::BUTTON_A),
-                (VirtualKeyCode::X, Controller::BUTTON_B),
-                (VirtualKeyCode::Space, Controller::START),
-                (VirtualKeyCode::Back, Controller::SELECT),
+                (KeyCode::ArrowUp, Controller::UP),
+                (KeyCode::ArrowRight, Controller::RIGHT),
+                (KeyCode::ArrowDown, Controller::DOWN),
+                (KeyCode::ArrowLeft, Controller::LEFT),
+                (KeyCode::KeyZ, Controller::BUTTON_A),
+                (KeyCode::KeyX, Controller::BUTTON_B),
+                (KeyCode::Space, Controller::START),
+                (KeyCode::Backspace, Controller::SELECT),
             ]
             .iter()
             .cloned()
@@ -127,11 +127,6 @@ impl GameState {
     }
 
     pub fn treat_input(&mut self) {
-        // Update the scale factor
-        if let Some(scale_factor) = self.input.scale_factor() {
-            self.framework.scale_factor(scale_factor as f32);
-        }
-
         // Resize the window
         if let Some(size) = self.input.window_resized() {
             self.pixels.resize_surface(size.width, size.height).ok();
@@ -146,12 +141,12 @@ impl GameState {
         }
 
         // Show settings menu
-        if self.input.key_pressed(VirtualKeyCode::Escape) {
+        if self.input.key_pressed(KeyCode::Escape) {
             self.framework.gui.settings_window.toggle();
         }
 
         // Reset game
-        if self.input.key_pressed(VirtualKeyCode::F5) {
+        if self.input.key_pressed(KeyCode::F5) {
             self.restart();
         }
     }

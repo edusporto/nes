@@ -61,7 +61,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     });
 
     // Limit to max ~60 fps update rate
-    window.limit_update_rate(Some(std::time::Duration::from_micros(16666)));
+    window.set_target_fps(60);
 
     let mut fps_avg = MovingAvg::new(30);
     let mut time = std::time::SystemTime::now();

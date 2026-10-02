@@ -5,17 +5,17 @@ authors = ["Eduardo Sandalo Porto <eduardosandaloporto@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-bitflags = "2.4"
+bitflags = "2.13"
 num-traits = "0.2"
-num-derive = "0.4"
-binread = "2.2"
-bitfield = "0.14"
-itertools = "0.12"
-thiserror = "1.0"
+num-derive = "0.5"
+binrw = "0.15"
+bitfield = "0.19"
+itertools = "0.15"
+thiserror = "2.0"
 
 [dev-dependencies]
-criterion = "0.5"
-minifb = "0.25"
+criterion = "0.8"
+minifb = "0.28"
 
 [[example]]
 name = "nes_minifb"

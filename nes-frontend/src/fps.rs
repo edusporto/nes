@@ -1,4 +1,4 @@
-use instant::Instant;
+use web_time::Instant;
 
 pub struct FpsCounter {
     time: Instant,

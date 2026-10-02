@@ -36,7 +36,7 @@ impl SettingsWindow {
             .open(&mut open)
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical()
-                    .id_source("settings_window")
+                    .id_salt("settings_window")
                     .show(ui, |ui| {
                         ui.spacing_mut().item_spacing.x /= 2.0;
 
@@ -140,7 +140,7 @@ impl SettingsWindow {
     fn ui_settings(&mut self, ui: &mut Ui) {
         ui.heading("UI settings");
         ui.horizontal(|ui| {
-            egui::widgets::global_dark_light_mode_switch(ui);
+            egui::widgets::global_theme_preference_switch(ui);
             ui.label("Change theme.");
         });
     }

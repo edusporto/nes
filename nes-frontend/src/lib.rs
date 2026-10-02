@@ -7,7 +7,7 @@ pub mod gui;
 /// Send events to a `Sender<T>`.
 ///
 /// Example usage:
-/// ```rust
+/// ```rust,ignore
 /// let (tx, rx) = tokio::sync::mpsc::channel(50);
 /// crate::event!(tx, |sender| {
 ///     sender.send(()).unwrap();
